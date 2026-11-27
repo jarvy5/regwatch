@@ -1,0 +1,52 @@
+{
+  "name": "regwatch-web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build --webpack",
+    "start": "next start",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "gen:openapi": "cd ../.. && uv run python scripts/export_openapi.py regwatch/frontend/openapi.json",
+    "gen:types": "npm run gen:openapi && openapi-typescript openapi.json -o lib/api-types.ts"
+  },
+  "dependencies": {
+    "@sentry/nextjs": "10.70.0",
+    "next": "^16.3.2",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-markdown": "9.0.1",
+    "remark-gfm": "4.0.1",
+    "smiles-drawer": "^2.4.1"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.6",
+    "@types/node": "26.2.0",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "@vitejs/plugin-react": "^6.1.0",
+    "autoprefixer": "10.5.4",
+    "eslint": "^9",
+    "eslint-config-next": "^16.3.2",
+    "jsdom": "^29.1.1",
+    "openapi-typescript": "^7.13.0",
+    "postcss": "^8.5.26",
+    "tailwindcss": "3.4.19",
+    "typescript": "5.6.3",
+    "vite": "^8.2.2",
+    "vitest": "^4.1.9"
+  },
+  "overrides": {
+    "@redocly/openapi-core": {
+      "js-yaml": "4.3.1"
+    },
+    "fast-uri": "3.1.5",
+    "sharp": "0.35.3",
+    "postcss": "$postcss",
+    "brace-expansion@^5.0.0": "^5.0.8"
+  }
+}

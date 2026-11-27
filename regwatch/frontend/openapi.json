@@ -1,0 +1,4104 @@
+{
+  "components": {
+    "schemas": {
+      "AlertRecord": {
+        "description": "One durable alert as ``latest_digest_records`` returns it (the Alert\ndataclass fields plus the read-time-derived ``change_kind``).",
+        "properties": {
+          "active_ingredient": {
+            "title": "Active Ingredient",
+            "type": "string"
+          },
+          "captured_at": {
+            "title": "Captured At",
+            "type": "string"
+          },
+          "change_kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "new",
+                  "revised"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Kind"
+          },
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "diff_summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Diff Summary"
+          },
+          "listing_appl_no": {
+            "title": "Listing Appl No",
+            "type": "string"
+          },
+          "listing_psg_type": {
+            "title": "Listing Psg Type",
+            "type": "string"
+          },
+          "product_id": {
+            "title": "Product Id",
+            "type": "integer"
+          },
+          "psg_document_id": {
+            "title": "Psg Document Id",
+            "type": "integer"
+          },
+          "psg_version_id": {
+            "title": "Psg Version Id",
+            "type": "integer"
+          },
+          "rationale": {
+            "title": "Rationale",
+            "type": "string"
+          },
+          "source_url": {
+            "title": "Source Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "product_id",
+          "active_ingredient",
+          "listing_appl_no",
+          "listing_psg_type",
+          "psg_document_id",
+          "psg_version_id",
+          "captured_at",
+          "diff_summary",
+          "confidence",
+          "rationale",
+          "source_url"
+        ],
+        "title": "AlertRecord",
+        "type": "object"
+      },
+      "AssembleRequest": {
+        "properties": {
+          "active_ingredient": {
+            "maxLength": 200,
+            "minLength": 2,
+            "title": "Active Ingredient",
+            "type": "string"
+          },
+          "dosage_form": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dosage Form"
+          },
+          "rld": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "RLD brand name or application number",
+            "title": "Rld"
+          }
+        },
+        "required": [
+          "active_ingredient"
+        ],
+        "title": "AssembleRequest",
+        "type": "object"
+      },
+      "AssembleResponse": {
+        "properties": {
+          "markdown": {
+            "title": "Markdown",
+            "type": "string"
+          },
+          "refused": {
+            "title": "Refused",
+            "type": "boolean"
+          },
+          "sections": {
+            "additionalProperties": true,
+            "title": "Sections",
+            "type": "object"
+          }
+        },
+        "required": [
+          "markdown",
+          "sections",
+          "refused"
+        ],
+        "title": "AssembleResponse",
+        "type": "object"
+      },
+      "Body_deficiency_analyze_deficiency_analyze_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_deficiency_analyze_deficiency_analyze_post",
+        "type": "object"
+      },
+      "ChemistryStructure": {
+        "description": "One drawable structure: a registry identity, never a model's words.\n\n``match`` is \"exact\" when the stored row is the product's own salt/form\nand \"parent\" when only the salt-stripped compound is known; the client\nmust say so in the caption. ``smiles`` is drawn client-side; ``source_url``\nis the PubChem page the figure can be checked against.",
+        "properties": {
+          "fetched_at": {
+            "format": "date-time",
+            "title": "Fetched At",
+            "type": "string"
+          },
+          "inchikey": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inchikey"
+          },
+          "iupac_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Iupac Name"
+          },
+          "match": {
+            "title": "Match",
+            "type": "string"
+          },
+          "molecular_formula": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Molecular Formula"
+          },
+          "molecular_weight": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Molecular Weight"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "pubchem_cid": {
+            "title": "Pubchem Cid",
+            "type": "integer"
+          },
+          "smiles": {
+            "title": "Smiles",
+            "type": "string"
+          },
+          "source_url": {
+            "title": "Source Url",
+            "type": "string"
+          },
+          "unii": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unii"
+          }
+        },
+        "required": [
+          "name",
+          "pubchem_cid",
+          "smiles",
+          "match",
+          "source_url",
+          "fetched_at"
+        ],
+        "title": "ChemistryStructure",
+        "type": "object"
+      },
+      "ChemistryStructuresResponse": {
+        "properties": {
+          "ingredient": {
+            "title": "Ingredient",
+            "type": "string"
+          },
+          "structures": {
+            "items": {
+              "$ref": "#/components/schemas/ChemistryStructure"
+            },
+            "title": "Structures",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ingredient",
+          "structures"
+        ],
+        "title": "ChemistryStructuresResponse",
+        "type": "object"
+      },
+      "ClarifyOptionOut": {
+        "properties": {
+          "filters": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filters"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "query"
+        ],
+        "title": "ClarifyOptionOut",
+        "type": "object"
+      },
+      "DeficiencyAnalyzeResponse": {
+        "properties": {
+          "run_id": {
+            "title": "Run Id",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "status"
+        ],
+        "title": "DeficiencyAnalyzeResponse",
+        "type": "object"
+      },
+      "DeficiencyRunDetailResponse": {
+        "description": "``report`` is a deliberately passthrough dict: the response must be\nVERBATIM what the audited run stored (same discipline as the white-paper\ndetail route). Null unless the run is complete.",
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "fault_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fault Count"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "page_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Count"
+          },
+          "report": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Report"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "filename",
+          "status",
+          "created_at",
+          "completed_at",
+          "page_count",
+          "fault_count",
+          "error",
+          "report"
+        ],
+        "title": "DeficiencyRunDetailResponse",
+        "type": "object"
+      },
+      "DeficiencyRunListResponse": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/DeficiencyRunSummary"
+            },
+            "title": "Runs",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "count",
+          "total",
+          "limit",
+          "offset",
+          "runs"
+        ],
+        "title": "DeficiencyRunListResponse",
+        "type": "object"
+      },
+      "DeficiencyRunSummary": {
+        "description": "One run list row. ``status``/``error`` are the READ-TIME interpretation\n(``effective_status``): a row stranded pending/running by a process restart\nreads as failed after the stale cutoff instead of spinning forever.",
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "fault_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fault Count"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "page_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Count"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "filename",
+          "status",
+          "created_at",
+          "completed_at",
+          "page_count",
+          "fault_count",
+          "error"
+        ],
+        "title": "DeficiencyRunSummary",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HealthComponents": {
+        "properties": {
+          "db": {
+            "$ref": "#/components/schemas/HealthDbComponent"
+          },
+          "embedding": {
+            "$ref": "#/components/schemas/HealthEmbeddingComponent"
+          },
+          "llm": {
+            "$ref": "#/components/schemas/HealthLlmComponent"
+          },
+          "vector_store": {
+            "$ref": "#/components/schemas/HealthVectorComponent"
+          }
+        },
+        "required": [
+          "db",
+          "vector_store",
+          "llm",
+          "embedding"
+        ],
+        "title": "HealthComponents",
+        "type": "object"
+      },
+      "HealthDbComponent": {
+        "properties": {
+          "dialect": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dialect"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "HealthDbComponent",
+        "type": "object"
+      },
+      "HealthEmbeddingComponent": {
+        "properties": {
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "profile"
+        ],
+        "title": "HealthEmbeddingComponent",
+        "type": "object"
+      },
+      "HealthLlmComponent": {
+        "properties": {
+          "key_present": {
+            "title": "Key Present",
+            "type": "boolean"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "key_present"
+        ],
+        "title": "HealthLlmComponent",
+        "type": "object"
+      },
+      "HealthResponse": {
+        "properties": {
+          "allow_test_providers": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allow Test Providers"
+          },
+          "components": {
+            "$ref": "#/components/schemas/HealthComponents"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "unhealthy"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          },
+          "whitepaper_template": {
+            "enum": [
+              "present",
+              "fetchable",
+              "absent"
+            ],
+            "title": "Whitepaper Template",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "components",
+          "whitepaper_template",
+          "warnings"
+        ],
+        "title": "HealthResponse",
+        "type": "object"
+      },
+      "HealthVectorComponent": {
+        "properties": {
+          "corpus_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corpus Count"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "HealthVectorComponent",
+        "type": "object"
+      },
+      "PsgContentBlock": {
+        "description": "One block of a reference PSG, in the studio's own block vocabulary.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "title",
+              "meta",
+              "h2",
+              "p"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "text",
+          "page"
+        ],
+        "title": "PsgContentBlock",
+        "type": "object"
+      },
+      "PsgDocumentContentResponse": {
+        "description": "One PSG rendered as a document the studio can open like a working file.\n\n``file_name`` carries the .docx name the rail shows and the download\nproduces, so the client never builds a second one that could disagree.\n``truncated`` is surfaced rather than swallowed: a short body with no\nexplanation would read as a short guidance.",
+        "properties": {
+          "active_ingredient": {
+            "title": "Active Ingredient",
+            "type": "string"
+          },
+          "appl_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Appl No"
+          },
+          "blocks": {
+            "items": {
+              "$ref": "#/components/schemas/PsgContentBlock"
+            },
+            "title": "Blocks",
+            "type": "array"
+          },
+          "dosage_form": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dosage Form"
+          },
+          "file_name": {
+            "title": "File Name",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "page_count": {
+            "title": "Page Count",
+            "type": "integer"
+          },
+          "psg_type": {
+            "title": "Psg Type",
+            "type": "string"
+          },
+          "recommended_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recommended Date"
+          },
+          "route": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route"
+          },
+          "source_url": {
+            "title": "Source Url",
+            "type": "string"
+          },
+          "truncated": {
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "appl_no",
+          "file_name",
+          "active_ingredient",
+          "dosage_form",
+          "route",
+          "psg_type",
+          "recommended_date",
+          "source_url",
+          "page_count",
+          "truncated",
+          "blocks"
+        ],
+        "title": "PsgDocumentContentResponse",
+        "type": "object"
+      },
+      "PsgDocumentListResponse": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/PsgLibraryDoc"
+            },
+            "title": "Documents",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "count",
+          "total",
+          "limit",
+          "offset",
+          "documents"
+        ],
+        "title": "PsgDocumentListResponse",
+        "type": "object"
+      },
+      "PsgLibraryDoc": {
+        "description": "One psg_document catalog row for the reference-library rail.\n\n``stripped_name`` is derived at read time (text_normalize.stripped_name) so\nthe client can salt-collapse (\"albuterol sulfate\" -> \"albuterol\") without\nshipping the salt-token table. ``psg_type`` stays a plain str (house\nprecedent: AlertRecord's listing fields) -- the crawler only ever writes\n\"draft\"/\"final\", and a str never 500s on a legacy row.",
+        "properties": {
+          "active_ingredient": {
+            "title": "Active Ingredient",
+            "type": "string"
+          },
+          "appl_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Appl No"
+          },
+          "dosage_form": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dosage Form"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "normalized_name": {
+            "title": "Normalized Name",
+            "type": "string"
+          },
+          "psg_type": {
+            "title": "Psg Type",
+            "type": "string"
+          },
+          "recommended_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recommended Date"
+          },
+          "route": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route"
+          },
+          "source_url": {
+            "title": "Source Url",
+            "type": "string"
+          },
+          "stripped_name": {
+            "title": "Stripped Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "active_ingredient",
+          "normalized_name",
+          "stripped_name",
+          "dosage_form",
+          "route",
+          "appl_no",
+          "psg_type",
+          "recommended_date",
+          "source_url"
+        ],
+        "title": "PsgLibraryDoc",
+        "type": "object"
+      },
+      "PsgRequirementOut": {
+        "description": "One extracted requirement, with the FDA words it was taken from.",
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "quote": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quote"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "value",
+          "page",
+          "quote"
+        ],
+        "title": "PsgRequirementOut",
+        "type": "object"
+      },
+      "PsgRequirementsResponse": {
+        "description": "What one PSG requires of an ANDA, as ingest extracted it.\n\n``extracted`` is False when no extraction row exists for this version\n(the ``--no-extract`` ingest path). The client must say so rather than\nrender an empty list as \"this guidance requires nothing\" -- the two are\nopposite claims.",
+        "properties": {
+          "extracted": {
+            "title": "Extracted",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "requirements": {
+            "items": {
+              "$ref": "#/components/schemas/PsgRequirementOut"
+            },
+            "title": "Requirements",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "extracted",
+          "requirements"
+        ],
+        "title": "PsgRequirementsResponse",
+        "type": "object"
+      },
+      "QueryCitation": {
+        "properties": {
+          "chunk_id": {
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "diff_summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Diff Summary"
+          },
+          "doc_id": {
+            "title": "Doc Id",
+            "type": "integer"
+          },
+          "dosage_form": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dosage Form"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "product_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product Name"
+          },
+          "psg_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Psg Type"
+          },
+          "recommended_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recommended Date"
+          },
+          "route": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "short_name": {
+            "title": "Short Name",
+            "type": "string"
+          },
+          "snippet": {
+            "title": "Snippet",
+            "type": "string"
+          },
+          "source_url": {
+            "title": "Source Url",
+            "type": "string"
+          },
+          "version_id": {
+            "title": "Version Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "short_name",
+          "page",
+          "chunk_id",
+          "doc_id",
+          "version_id",
+          "source_url",
+          "snippet"
+        ],
+        "title": "QueryCitation",
+        "type": "object"
+      },
+      "QueryRequest": {
+        "properties": {
+          "filters": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filters"
+          },
+          "k": {
+            "anyOf": [
+              {
+                "maximum": 50.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "K"
+          },
+          "live_draft": {
+            "default": false,
+            "title": "Live Draft",
+            "type": "boolean"
+          },
+          "origin": {
+            "default": "thread",
+            "enum": [
+              "thread",
+              "assistant"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "question": {
+            "maxLength": 4000,
+            "minLength": 2,
+            "title": "Question",
+            "type": "string"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          }
+        },
+        "required": [
+          "question"
+        ],
+        "title": "QueryRequest",
+        "type": "object"
+      },
+      "QueryResponse": {
+        "properties": {
+          "answer": {
+            "title": "Answer",
+            "type": "string"
+          },
+          "audit_id": {
+            "title": "Audit Id",
+            "type": "integer"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/QueryCitation"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "clarify": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ClarifyOptionOut"
+            },
+            "title": "Clarify",
+            "type": "array"
+          },
+          "draft_withdrawn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Draft Withdrawn"
+          },
+          "interpretation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interpretation"
+          },
+          "model_name": {
+            "title": "Model Name",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "refused": {
+            "title": "Refused",
+            "type": "boolean"
+          },
+          "related": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ClarifyOptionOut"
+            },
+            "title": "Related",
+            "type": "array"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "status": {
+            "default": "answer",
+            "enum": [
+              "answer",
+              "summary",
+              "clarify",
+              "scope_warning",
+              "meta",
+              "refused",
+              "error"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "turn_id": {
+            "title": "Turn Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "answer",
+          "citations",
+          "refused",
+          "model_name",
+          "audit_id",
+          "session_id",
+          "turn_id"
+        ],
+        "title": "QueryResponse",
+        "type": "object"
+      },
+      "ReadyChecks": {
+        "properties": {
+          "db": {
+            "title": "Db",
+            "type": "boolean"
+          },
+          "llm": {
+            "title": "Llm",
+            "type": "boolean"
+          },
+          "rls": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rls"
+          },
+          "vector_store": {
+            "title": "Vector Store",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "db",
+          "vector_store",
+          "llm"
+        ],
+        "title": "ReadyChecks",
+        "type": "object"
+      },
+      "ReadyResponse": {
+        "properties": {
+          "checks": {
+            "$ref": "#/components/schemas/ReadyChecks"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "failed": {
+            "anyOf": [
+              {
+                "enum": [
+                  "db",
+                  "vector_store",
+                  "llm",
+                  "rls"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failed"
+          },
+          "status": {
+            "enum": [
+              "ready",
+              "not_ready"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "checks"
+        ],
+        "title": "ReadyResponse",
+        "type": "object"
+      },
+      "ResolveRequest": {
+        "properties": {
+          "application_number": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Application Number",
+            "type": "string"
+          },
+          "rld_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Rld Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rld_name",
+          "application_number"
+        ],
+        "title": "ResolveRequest",
+        "type": "object"
+      },
+      "SourceKind": {
+        "description": "The exact source universe exposed by the public API.",
+        "enum": [
+          "psg",
+          "orange_book",
+          "drugsfda",
+          "action_package",
+          "fda_be_guidance"
+        ],
+        "title": "SourceKind",
+        "type": "string"
+      },
+      "SourceRecordResponse": {
+        "properties": {
+          "fields": {
+            "additionalProperties": true,
+            "title": "Fields",
+            "type": "object"
+          },
+          "identifiers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Identifiers",
+            "type": "object"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceKind"
+          },
+          "source_url": {
+            "title": "Source Url",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "title",
+          "source_url",
+          "identifiers",
+          "fields"
+        ],
+        "title": "SourceRecordResponse",
+        "type": "object"
+      },
+      "SourceSearchRequest": {
+        "properties": {
+          "active_ingredient": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Ingredient"
+          },
+          "application_number": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Application Number"
+          },
+          "brand_name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brand Name"
+          },
+          "dosage_form": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dosage Form"
+          },
+          "limit": {
+            "default": 10,
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "query_text": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Query Text",
+            "type": "string"
+          },
+          "route": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route"
+          },
+          "sources": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SourceKind"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sources"
+          }
+        },
+        "title": "SourceSearchRequest",
+        "type": "object"
+      },
+      "SourceSearchResponse": {
+        "properties": {
+          "records": {
+            "items": {
+              "$ref": "#/components/schemas/SourceRecordResponse"
+            },
+            "title": "Records",
+            "type": "array"
+          },
+          "routed_sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceKind"
+            },
+            "title": "Routed Sources",
+            "type": "array"
+          }
+        },
+        "required": [
+          "routed_sources",
+          "records"
+        ],
+        "title": "SourceSearchResponse",
+        "type": "object"
+      },
+      "StudioBlockIn": {
+        "description": "One editable block of a Studio document, as the canvas holds it.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "rows": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/StudioRowIn"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rows"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "text"
+        ],
+        "title": "StudioBlockIn",
+        "type": "object"
+      },
+      "StudioCheckRequest": {
+        "properties": {
+          "blocks": {
+            "items": {
+              "$ref": "#/components/schemas/StudioBlockIn"
+            },
+            "title": "Blocks",
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "blocks"
+        ],
+        "title": "StudioCheckRequest",
+        "type": "object"
+      },
+      "StudioRowIn": {
+        "description": "One row of a Studio table block.",
+        "properties": {
+          "cells": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Cells",
+            "type": "array"
+          },
+          "head": {
+            "default": false,
+            "title": "Head",
+            "type": "boolean"
+          }
+        },
+        "title": "StudioRowIn",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "WatchLatestResponse": {
+        "properties": {
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/AlertRecord"
+            },
+            "title": "Alerts",
+            "type": "array"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "last_run": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WatchRunSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "count",
+          "total",
+          "limit",
+          "offset",
+          "alerts",
+          "last_run"
+        ],
+        "title": "WatchLatestResponse",
+        "type": "object"
+      },
+      "WatchRunSummary": {
+        "description": "Telemetry of the newest COMPLETED watch run (the durable ledger row).",
+        "properties": {
+          "added": {
+            "title": "Added",
+            "type": "integer"
+          },
+          "alerts": {
+            "title": "Alerts",
+            "type": "integer"
+          },
+          "errors": {
+            "title": "Errors",
+            "type": "integer"
+          },
+          "finished_at": {
+            "title": "Finished At",
+            "type": "string"
+          },
+          "listings": {
+            "title": "Listings",
+            "type": "integer"
+          },
+          "matched": {
+            "title": "Matched",
+            "type": "integer"
+          },
+          "revised": {
+            "title": "Revised",
+            "type": "integer"
+          },
+          "started_at": {
+            "title": "Started At",
+            "type": "string"
+          },
+          "unchanged": {
+            "title": "Unchanged",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "started_at",
+          "finished_at",
+          "listings",
+          "matched",
+          "added",
+          "revised",
+          "unchanged",
+          "errors",
+          "alerts"
+        ],
+        "title": "WatchRunSummary",
+        "type": "object"
+      },
+      "WhitepaperCellRequest": {
+        "properties": {
+          "value": {
+            "anyOf": [
+              {
+                "maxLength": 5024,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "title": "WhitepaperCellRequest",
+        "type": "object"
+      },
+      "WhitepaperCellResponse": {
+        "properties": {
+          "cell_id": {
+            "title": "Cell Id",
+            "type": "string"
+          },
+          "cleared": {
+            "title": "Cleared",
+            "type": "boolean"
+          },
+          "input": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WhitepaperInputOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run_id",
+          "cell_id",
+          "cleared",
+          "input"
+        ],
+        "title": "WhitepaperCellResponse",
+        "type": "object"
+      },
+      "WhitepaperInputOut": {
+        "description": "One attributed analyst overlay value.",
+        "properties": {
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "author",
+          "updated_at"
+        ],
+        "title": "WhitepaperInputOut",
+        "type": "object"
+      },
+      "WhitepaperRequest": {
+        "properties": {
+          "application_number": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Application Number",
+            "type": "string"
+          },
+          "rld_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Rld Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rld_name",
+          "application_number"
+        ],
+        "title": "WhitepaperRequest",
+        "type": "object"
+      },
+      "WhitepaperResponse": {
+        "description": "The populate result, verbatim.\n\n``spine``/``sections`` are deliberately passthrough (plain dict/list, no\nnested models) for the same INV-3 reason as WhitepaperRunDetailResponse:\n``_persist_whitepaper_run`` stores this exact payload BEFORE serialization,\nso a typed model that stripped or reshaped a field would make the stored\nrun diverge from the HTTP response (tests pin the parity).",
+        "properties": {
+          "audit_id": {
+            "title": "Audit Id",
+            "type": "integer"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "sections": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Sections",
+            "type": "array"
+          },
+          "spine": {
+            "additionalProperties": true,
+            "title": "Spine",
+            "type": "object"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "spine",
+          "sections",
+          "warnings",
+          "audit_id",
+          "run_id"
+        ],
+        "title": "WhitepaperResponse",
+        "type": "object"
+      },
+      "WhitepaperRunDeleteResponse": {
+        "properties": {
+          "deleted": {
+            "title": "Deleted",
+            "type": "boolean"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "deleted",
+          "run_id"
+        ],
+        "title": "WhitepaperRunDeleteResponse",
+        "type": "object"
+      },
+      "WhitepaperRunDetailResponse": {
+        "description": "The full stored run.\n\n``spine``/``sections``/``warnings`` are deliberately passthrough fields\n(plain dict/list, no nested models): the response must be VERBATIM what the\naudited populate stored -- serialization may never reshape or filter the\nfingerprinted sections payload (INV-3).",
+        "properties": {
+          "analyst_input_count": {
+            "title": "Analyst Input Count",
+            "type": "integer"
+          },
+          "application_number": {
+            "title": "Application Number",
+            "type": "string"
+          },
+          "application_type": {
+            "title": "Application Type",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "title": "Created By",
+            "type": "string"
+          },
+          "created_by_user_id": {
+            "title": "Created By User Id",
+            "type": "integer"
+          },
+          "finalized_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finalized At"
+          },
+          "finalized_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finalized By"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "ingredient": {
+            "title": "Ingredient",
+            "type": "string"
+          },
+          "inputs": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/WhitepaperInputOut"
+            },
+            "title": "Inputs",
+            "type": "object"
+          },
+          "normalized_name": {
+            "title": "Normalized Name",
+            "type": "string"
+          },
+          "populated_count": {
+            "title": "Populated Count",
+            "type": "integer"
+          },
+          "rld_name_input": {
+            "title": "Rld Name Input",
+            "type": "string"
+          },
+          "sections": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Sections",
+            "type": "array"
+          },
+          "source_audit_id": {
+            "title": "Source Audit Id",
+            "type": "integer"
+          },
+          "spine": {
+            "additionalProperties": true,
+            "title": "Spine",
+            "type": "object"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "verified_absent_count": {
+            "title": "Verified Absent Count",
+            "type": "integer"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "rld_name_input",
+          "application_number",
+          "application_type",
+          "ingredient",
+          "normalized_name",
+          "spine",
+          "sections",
+          "warnings",
+          "status",
+          "populated_count",
+          "analyst_input_count",
+          "verified_absent_count",
+          "source_audit_id",
+          "created_by",
+          "created_by_user_id",
+          "created_at",
+          "updated_at",
+          "finalized_at",
+          "finalized_by",
+          "inputs"
+        ],
+        "title": "WhitepaperRunDetailResponse",
+        "type": "object"
+      },
+      "WhitepaperRunListResponse": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/WhitepaperRunSummary"
+            },
+            "title": "Runs",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "count",
+          "total",
+          "limit",
+          "offset",
+          "runs"
+        ],
+        "title": "WhitepaperRunListResponse",
+        "type": "object"
+      },
+      "WhitepaperRunStatusResponse": {
+        "properties": {
+          "run_id": {
+            "title": "Run Id",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "status"
+        ],
+        "title": "WhitepaperRunStatusResponse",
+        "type": "object"
+      },
+      "WhitepaperRunSummary": {
+        "description": "One org-shared run list row (no JSON payloads -- see the detail route).",
+        "properties": {
+          "analyst_input_count": {
+            "title": "Analyst Input Count",
+            "type": "integer"
+          },
+          "application_number": {
+            "title": "Application Number",
+            "type": "string"
+          },
+          "application_type": {
+            "title": "Application Type",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "title": "Created By",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "ingredient": {
+            "title": "Ingredient",
+            "type": "string"
+          },
+          "inputs_count": {
+            "title": "Inputs Count",
+            "type": "integer"
+          },
+          "normalized_name": {
+            "title": "Normalized Name",
+            "type": "string"
+          },
+          "populated_count": {
+            "title": "Populated Count",
+            "type": "integer"
+          },
+          "rld_name_input": {
+            "title": "Rld Name Input",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "verified_absent_count": {
+            "title": "Verified Absent Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "rld_name_input",
+          "application_number",
+          "application_type",
+          "ingredient",
+          "normalized_name",
+          "status",
+          "populated_count",
+          "analyst_input_count",
+          "verified_absent_count",
+          "inputs_count",
+          "created_by",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "WhitepaperRunSummary",
+        "type": "object"
+      },
+      "WhitepaperSpine": {
+        "description": "The canonical spine ``populator._spine_from_ctx`` emits.\n\nTyped here (unlike the /whitepaper embedding, which must stay verbatim\npassthrough for stored-run parity) because /resolve persists nothing: the\nresponse IS the whole contract. application_type is a code-verified closed\nset - every assignment in populator resolves to an NDA/ANDA/BLA prefix.",
+        "properties": {
+          "application_number": {
+            "title": "Application Number",
+            "type": "string"
+          },
+          "application_type": {
+            "enum": [
+              "NDA",
+              "ANDA",
+              "BLA"
+            ],
+            "title": "Application Type",
+            "type": "string"
+          },
+          "approved_label_document_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved Label Document Id"
+          },
+          "approved_label_source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved Label Source Url"
+          },
+          "approved_label_updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved Label Updated At"
+          },
+          "ingredient": {
+            "title": "Ingredient",
+            "type": "string"
+          },
+          "normalized_name": {
+            "title": "Normalized Name",
+            "type": "string"
+          },
+          "product_numbers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Product Numbers",
+            "type": "array"
+          },
+          "setid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Setid"
+          },
+          "spl_candidates": {
+            "items": {
+              "$ref": "#/components/schemas/WhitepaperSplCandidate"
+            },
+            "title": "Spl Candidates",
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "application_number",
+          "application_type",
+          "ingredient",
+          "normalized_name",
+          "product_numbers",
+          "setid",
+          "spl_candidates",
+          "approved_label_document_id",
+          "approved_label_source_url",
+          "approved_label_updated_at",
+          "warnings"
+        ],
+        "title": "WhitepaperSpine",
+        "type": "object"
+      },
+      "WhitepaperSplCandidate": {
+        "properties": {
+          "labeler": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Labeler"
+          },
+          "published": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published"
+          },
+          "setid": {
+            "title": "Setid",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "setid",
+          "title",
+          "labeler",
+          "published"
+        ],
+        "title": "WhitepaperSplCandidate",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Operational POC for a generic-drug Clinical Regulatory Affairs team. Public FDA data only. The system surfaces, organizes, compares, and cites; it never authors submission content or renders regulatory judgment.",
+    "title": "REGWATCH",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/assemble": {
+      "post": {
+        "operationId": "assemble_assemble_post",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "regwatch_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Regwatch Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssembleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssembleResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Assemble"
+      }
+    },
+    "/chemistry/structures": {
+      "get": {
+        "description": "Stored PubChem structures for a product name. DB read only, no egress.\n\nEmpty ``structures`` means nothing is stored for that name (never looked\nup, not found, or ambiguous); the client hides the figure. A structure is\nnever citable and is deliberately absent from the turn payload.",
+        "operationId": "chemistry_structures_chemistry_structures_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "ingredient",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Ingredient",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "regwatch_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Regwatch Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChemistryStructuresResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Chemistry Structures"
+      }
+    },
+    "/deficiency/analyze": {
+      "post": {
+        "description": "Accept a submission PDF, create the run row, schedule the analysis.\n\nThe whole body is size-capped and magic-checked while streaming to a temp\nfile -- never buffered in memory, never trusted from Content-Length. 202 +\nrun_id; the UI polls GET /deficiency/runs/{id}.",
+        "operationId": "deficiency_analyze_deficiency_analyze_post",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "regwatch_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Regwatch Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_deficiency_analyze_deficiency_analyze_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeficiencyAnalyzeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Deficiency Analyze"
+      }
+    },
+    "/deficiency/runs": {
+      "get": {
+        "description": "Org-shared runs, newest first (same product decision as white-paper\nruns: any authenticated analyst sees every run).",
+        "operationId": "deficiency_runs_list_deficiency_runs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "regwatch_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Regwatch Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeficiencyRunListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Deficiency Runs List"
+      }
+    },
+    "/deficiency/runs/{run_id}": {
+      "get": {
+        "description": "One run + its verbatim stored fault report (null until complete).\n\nUploads only. Studio checks share this table but are private to their\ncreator, so serving one here would let any analyst read a colleague's\ndraft by asking the org-shared route for the same id.",
+        "operationId": "deficiency_run_detail_deficiency_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "regwatch_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Regwatch Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeficiencyRunDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Deficiency Run Detail"
+      }
+    },
+    "/health": {
+      "get": {
+        "description": "Diagnose the stack: db, pgvector, providers. Superset of {\"status\": \"ok\"}.\n\n503 only when the DB or the vector store is unreachable. An empty corpus is\nhealthy (with a warning) so a fresh stack can boot and the ingest can seed.",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health"
+      }
+    },
+    "/metrics": {
+      "get": {
+        "description": "Prometheus text-exposition counters derived from the query_log audit table.\n\nHand-rolled (no prometheus_client dependency): exposes total queries by mode\nand the refusal counter. The body is plain text/version-0.0.4.\n\nAccess is OPT-IN: open like /health and /ready by default (so a scraper\nreaches it without the session cookie), but when METRICS_TOKEN is set the\nrequest must carry `Authorization: Bearer <token>` or this returns 401.\n/health and /ready are never gated this way.",
+        "operationId": "metrics_metrics_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Metrics"
+      }
+    },
+    "/psg/documents": {
+      "get": {
+        "operationId": "psg_documents_psg_documents_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 2000,
+              "maximum": 5000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "regwatch_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Regwatch Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PsgDocumentListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Psg Documents"
+      }
+    },
+    "/psg/documents/{doc_id}/content": {
+      "get": {
+        "description": "One PSG as ordered blocks, rebuilt from the text ingest already stored.\n\nNo PDF fetch and no parsing happen here: the chunks of the document's\ncurrent version are read and reassembled, which is why this is cheap\nenough to serve on every open (a PSG averages three chunks).",
+        "operationId": "psg_document_content_psg_documents__doc_id__content_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "doc_id",
+            "required": true,
+            "schema": {
+              "title": "Doc Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "regwatch_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Regwatch Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PsgDocumentContentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Psg Document Content"
+      }
+    },
+    "/psg/documents/{doc_id}/docx": {
+      "get": {
+        "description": "The same PSG as a Word download, generated per request and never stored.\n\nSame source and same blocks as the content route, so what an analyst reads\nin the studio and what lands in their working folder cannot drift apart.",
+        "operationId": "psg_document_docx_psg_documents__doc_id__docx_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "doc_id",
+            "required": true,
+            "schema": {
+              "title": "Doc Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "regwatch_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Regwatch Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Psg Document Docx"
+      }
+    },
+    "/psg/documents/{doc_id}/pdf": {
+      "get": {
+        "description": "Stream one PSG PDF inline: local cache first, else fetch from fda.gov.\n\nThe remote branch reuses the crawler's hardened ``download_pdf`` (polite\npause, streamed byte cap, %PDF validation, write-through cache in ingest's\nown naming scheme) under a tighter per-request timeout budget. Error\ndetails never include the upstream URL.",
+        "operationId": "psg_document_pdf_psg_documents__doc_id__pdf_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "doc_id",
+            "required": true,
+            "schema": {
+              "title": "Doc Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "regwatch_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Regwatch Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Psg Document Pdf"
+      },
+      "head": {
+        "description": "Availability probe for the Studio's PDF pane.\n\nAnswers from the DB row plus at most two stat() calls -- never fda.gov,\nnever the rate budget -- so the frontend can distinguish \"this document\ncan be served\" from a transport failure before mounting the iframe.\nFastAPI does not auto-answer HEAD for GET routes, so this handler is\nload-bearing, not decoration.",
+        "operationId": "psg_document_pdf_head_psg_documents__doc_id__pdf_head",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "doc_id",
+            "required": true,
+            "schema": {
+              "title": "Doc Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "regwatch_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Regwatch Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Psg Document Pdf Head"
+      }
+    },
+    "/psg/documents/{doc_id}/requirements": {
+      "get": {
+        "description": "The BE requirements ingest extracted from this PSG's current version.\n\nThese are not compliance findings about the document: a PSG has no\ndefects to report. They are what the guidance asks an applicant to do,\neach carrying the page and the verbatim quote it came from, so the studio\ncan anchor them in the rendered text instead of restating them loose.",
+        "operationId": "psg_document_requirements_psg_documents__doc_id__requirements_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "doc_id",
+            "required": true,
+            "schema": {
+              "title": "Doc Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "regwatch_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Regwatch Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PsgRequirementsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Psg Document Requirements"
+      }
+    },
+    "/query": {
+      "post": {
+        "operationId": "query_query_post",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "regwatch_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Regwatch Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Query"
+      }
+    },
+    "/query/stream": {
+      "post": {
+        "description": "Streaming twin of POST /query (Server-Sent Events).\n\nSame auth, rate limit, ownership, pipeline, and single audit row as /query;\nit streams live progress as ``status`` frames and the SAME validated\nQueryResponse as one terminal ``result`` frame (both built via\n_build_query_response, so the shapes cannot drift). The Ask UI consumes this\nand transparently falls back to POST /query if the stream fails. Rate-limit\n(429), ownership (404), and auth (401) are enforced BEFORE the stream opens,\nas real HTTP statuses -- never mid-stream.",
+        "operationId": "query_stream_query_stream_post",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "regwatch_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Regwatch Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Query Stream"
+      }
+    },
+    "/ready": {
+      "get": {
+        "description": "Readiness probe: 200 only when the DB + vector store are reachable AND the\nLLM client is constructable (key present). Distinct from /health's liveness:\na load balancer routes traffic on this. No paid LLM call is made - only the\ncheap reachability checks. Both are timeout-bounded by the per-connection\nconnect/statement timeouts on the shared engine (the vector-store probe is a\n`SELECT count(*)` in pgvector mode, so a degraded DB is capped by\nDB_STATEMENT_TIMEOUT rather than hanging the probe). 503 names the FIRST\nfailed check so an operator sees what to fix.\n\nAlso fails CLOSED on row level security: boot deliberately tolerates a\nlock-contended `ALTER ... ENABLE ROW LEVEL SECURITY` (the 2026-06-18\nincident design), so this is where a still-unprotected public table -- which\nis readable over a PostgREST-style Data API -- stops being SILENT. No\nextra DB round trip: the set is what the boot sweep recorded.",
+        "operationId": "ready_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ready"
+      }
+    },
+    "/resolve": {
+      "post": {
+        "description": "Resolve an RLD name + application number to the canonical spine.\n\nDeterministic entity resolution, NOT an LLM turn: it writes NO audit row\n(success or failure) and returns no answer text -- it lets a surface pin a\ncanonical product without running a full populate. On an unresolved or\nmismatched application it 422s with the resolver's own detail (refuse over\nguess). Rate-limited like /query, /assemble, /whitepaper (it hits live FDA\nsources just as they do).",
+        "operationId": "resolve_resolve_post",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "regwatch_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Regwatch Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhitepaperSpine"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resolve"
+      }
+    },
+    "/sources/search": {
+      "post": {
+        "operationId": "sources_search_sources_search_post",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "regwatch_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Regwatch Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceSearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceSearchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sources Search"
+      }
+    },
+    "/studio/check": {
+      "post": {
+        "description": "Check one Studio document for candidate deficiencies.\n\n202 + run_id; the UI polls GET /studio/check/{id}. The document is hashed\nfrom the text that will actually be checked, so two checks of an unedited\ndraft are comparable and an edit is visibly a different document.",
+        "operationId": "studio_check_studio_check_post",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "regwatch_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Regwatch Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudioCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeficiencyAnalyzeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Studio Check"
+      }
+    },
+    "/studio/check/{run_id}": {
+      "get": {
+        "description": "One of the caller's own checks + its verbatim stored report.",
+        "operationId": "studio_check_detail_studio_check__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "regwatch_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Regwatch Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeficiencyRunDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Studio Check Detail"
+      }
+    },
+    "/watch/latest": {
+      "get": {
+        "operationId": "watch_latest_watch_latest_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "regwatch_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Regwatch Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchLatestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Watch Latest"
+      }
+    },
+    "/whitepaper": {
+      "post": {
+        "description": "Populate the CRA White Paper for an RLD name + NDA/ANDA number.\n\nWrites one whitepaper audit row (in build_whitepaper) on success AND on a\n422 resolution failure. Rate-limited like /query and /assemble. A\nsuccessful populate is persisted as a durable org-shared run and the\nresponse gains ``run_id`` (null when the persist degraded, see\n``_persist_whitepaper_run``).",
+        "operationId": "whitepaper_whitepaper_post",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "regwatch_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Regwatch Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WhitepaperRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhitepaperResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Whitepaper"
+      }
+    },
+    "/whitepaper/runs": {
+      "get": {
+        "description": "Org-shared saved runs, newest activity first.\n\nAny authenticated analyst sees every run (a product decision, design doc\nsection 10); deletes stay creator-only. Shape follows /watch/latest:\ncount/total/limit/offset so pagination stays truthful.",
+        "operationId": "whitepaper_runs_list_whitepaper_runs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "application_number",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 40,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Application Number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "normalized_name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Normalized Name"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 40,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "regwatch_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Regwatch Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhitepaperRunListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Whitepaper Runs List"
+      }
+    },
+    "/whitepaper/runs/{run_id}": {
+      "delete": {
+        "description": "Creator-only (403), drafts-only (409): a finalized paper is a record.",
+        "operationId": "whitepaper_run_delete_whitepaper_runs__run_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "regwatch_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Regwatch Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhitepaperRunDeleteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Whitepaper Run Delete"
+      },
+      "get": {
+        "description": "One saved run: verbatim generated payload + the analyst overlay.\n\n404 for a missing id -- runs are org-shared, so existence is not a secret\n(the legacy uniform-422 pattern applied only to the per-user audit lookup).",
+        "operationId": "whitepaper_run_detail_whitepaper_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "regwatch_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Regwatch Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhitepaperRunDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Whitepaper Run Detail"
+      }
+    },
+    "/whitepaper/runs/{run_id}/cells/{cell_id}": {
+      "post": {
+        "description": "Set (or clear) one attributed analyst overlay cell (org-shared edit).\n\nA ``null`` or empty-after-cleaning value clears the cell. No query rate\nlimit: a pure bounded DB write, no FDA/LLM call. The store owns the domain\nrules; this boundary maps its typed errors -- 404 missing run, 409\nfinal-frozen or lost-the-concurrent-insert (retry), 422 unknown cell /\noversized value.",
+        "operationId": "whitepaper_run_set_cell_whitepaper_runs__run_id__cells__cell_id__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "cell_id",
+            "required": true,
+            "schema": {
+              "title": "Cell Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "regwatch_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Regwatch Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WhitepaperCellRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhitepaperCellResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Whitepaper Run Set Cell"
+      }
+    },
+    "/whitepaper/runs/{run_id}/docx": {
+      "post": {
+        "description": "Render the Word document FROM the saved run -- no client echo, no re-populate.\n\nZero live fetches, zero LLM calls: the .docx renders the STORED generated\nlayer after re-verifying ``result_fingerprint(sections) == sections_sha256``\n(a mismatch is stored-data corruption: 500 + Sentry, no document), with the\nattributed analyst overlay applied per the writer's INV-3 discipline. The\nofficial template is lazily fetched on first use (ensure_template); any\nfetch failure keeps the loud FALLBACK_MARKER path. Keeps the /query rate\nlimiter (docx assembly is CPU-bound) and writes one lightweight audit row\n(mode=\"whitepaper\", docx_rendered).",
+        "operationId": "whitepaper_run_docx_whitepaper_runs__run_id__docx_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "regwatch_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Regwatch Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Whitepaper Run Docx"
+      }
+    },
+    "/whitepaper/runs/{run_id}/finalize": {
+      "post": {
+        "description": "draft -> final: freezes the analyst layer; open to any analyst, audited.\n\nThe store re-verifies the stored sections fingerprint FIRST -- a mismatch\nis stored-data corruption (500 + Sentry), never a client error.",
+        "operationId": "whitepaper_run_finalize_whitepaper_runs__run_id__finalize_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "regwatch_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Regwatch Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhitepaperRunStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Whitepaper Run Finalize"
+      }
+    },
+    "/whitepaper/runs/{run_id}/reopen": {
+      "post": {
+        "description": "final -> draft: clears the finalize stamp; open to any analyst, audited.",
+        "operationId": "whitepaper_run_reopen_whitepaper_runs__run_id__reopen_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "regwatch_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Regwatch Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhitepaperRunStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Whitepaper Run Reopen"
+      }
+    }
+  }
+}

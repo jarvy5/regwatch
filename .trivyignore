@@ -1,0 +1,112 @@
+# Trivy image-scan suppressions for the CI gate (.github/workflows/ci.yml).
+# Scope: FIXABLE CRITICAL/HIGH only (CI runs --ignore-unfixed). Remove an entry
+# the moment its finding becomes genuinely fixable in our image.
+#
+# Trivy's legacy ignorefile matches the EXACT VulnerabilityID it reports and does
+# NOT resolve CVE<->GHSA aliases. Trivy's DB has been flipping these advisories
+# from GHSA to CVE as the primary id, which silently un-suppressed them (that is
+# what broke this gate). So where an advisory can surface under either id we list
+# BOTH, to stay matched whichever one Trivy reports.
+
+# --- web image: vitest UI arbitrary file read/execute -----------------------
+# Requires `vitest --ui` to be explicitly started. The frontend image runs the
+# Next.js dev server (`npm run dev`), never the Vitest UI server. Not reachable.
+CVE-2026-47429
+GHSA-5xrq-8626-4rwp
+
+# --- web image: vite server.fs.deny bypass via Windows alternate paths -------
+# Windows-specific (NT UNC / alternate data streams). The image runs on Linux.
+CVE-2026-53571
+GHSA-fx2h-pf6j-xcff
+
+# --- web image: brace-expansion DoS (unbounded expansion -> OOM) -------------
+# The PRODUCTION chain is FIXED, not suppressed: regwatch/frontend/package.json
+# overrides `brace-expansion@^5.0.0` to ^5.0.8, moving the only prod path
+# (@sentry/nextjs -> @sentry/bundler-plugin-core -> glob -> minimatch) off the
+# vulnerable range. `npm audit --omit=dev --audit-level=high` is clean.
+#
+# The two APP-TREE copies are now FIXED, not suppressed: upstream backported the
+# patch to the legacy lines, so package-lock.json pins
+# node_modules/brace-expansion@1.1.18 and
+# @redocly/openapi-core/node_modules/brace-expansion@2.1.4. Both still do
+# `module.exports = expandTop` (verified against the 1.1.18/2.1.4 tarballs), so
+# their consumers -- which `require('brace-expansion')` and CALL the result --
+# keep working. That is why the 5.x override stays scoped to ^5.0.0: only the 5.x
+# line returns {expand} instead of a callable.
+#
+# What remains cannot be fixed HERE and is dev-tooling only:
+#   * usr/local/lib/node_modules/npm/node_modules/brace-expansion@5.0.7 -- npm's
+#     OWN bundled copy from `npm install -g npm@11.18.0` in the Dockerfile. No
+#     lockfile change reaches it, and npm 11.19.0 (the newest release this
+#     node:20 base can take -- npm 12 needs Node >=22) still bundles 5.0.7, so
+#     bumping the pin does nothing. It moves when npm ships a rebuilt release.
+# The image serves Next.js; npm's bundled copy is not on a request path, and the
+# advisory needs attacker-controlled brace input to the expander. Drop entries as
+# npm ships fixed releases.
+CVE-2026-14257
+GHSA-mh99-v99m-4gvg
+# Same package, later advisory: DoS via unbounded intermediate arrays, bypassing
+# the CVE-2026-14257 mitigation. Affects npm's bundled 5.0.7 (fixed in 5.0.9).
+CVE-2026-69152
+GHSA-rgw5-rvv9-x895
+
+# --- web image: ip-address SSRF via leading-zero octet confusion -------------
+# usr/local/lib/node_modules/npm/node_modules/ip-address@10.2.0 (fixed 10.3.1),
+# pulled in by npm's own socks-proxy-agent. Same story as brace-expansion above:
+# it is inside the globally installed npm, no lockfile reaches it, and npm
+# 11.19.0 still bundles 10.2.0. Address4 only parses addresses npm itself hands
+# it when talking through a SOCKS proxy -- the image sets no proxy and the app
+# never calls this code. Drop when npm rebundles.
+CVE-2026-69192
+GHSA-mwp4-54f8-5fhr
+
+# --- web image: node-tar DoS via crafted long-path archive --------------------
+# usr/local/lib/node_modules/npm/node_modules/tar@7.5.19 (fixed 7.5.21), npm's
+# OWN bundled copy from `npm install -g npm@11.18.0`. Same story as the two
+# entries above: no lockfile reaches it, and as of 2026-08-25 NO npm release
+# bundles a fixed tar -- 11.19.0 (newest 11.x) and 12.0.2 (needs Node >=22)
+# both still ship 7.5.19, so neither a pin bump nor a Node 22 base helps. npm
+# only invokes tar at build time (`npm ci`), on registry tarballs whose
+# integrity package-lock.json pins; the running app (`npm run dev`) never
+# extracts an archive. Denial of service only, not code execution. Drop when
+# npm rebundles tar>=7.5.21 (check: tar -xzO package/node_modules/tar/package.json
+# from the npm tarball).
+CVE-2026-73566
+GHSA-r292-9mhp-454m
+
+# --- web image: Go stdlib CVEs inside esbuild's bundled Go binary ------------
+# esbuild ships as a pre-compiled Go binary (@esbuild/<platform>/bin/esbuild),
+# pulled in transitively by vite/vitest as a dev/build dependency. Trivy flags
+# the Go stdlib (v1.20.12) baked into that binary. We do not build esbuild and
+# cannot bump its embedded Go toolchain; only an upstream esbuild release can.
+# esbuild runs as a local code transform, never as a network or TLS peer, so
+# these net/* (DoS, IP parsing) and crypto/tls (session-resumption certificate
+# validation) issues are not reachable in our usage. Drop entries as newer
+# esbuild ships rebuilt binaries.
+#
+# Verified Jun 2026 by reproducing the CI scan: every CVE below comes from the
+# WEB image's esbuild Go binary, NOT a Python dependency in the API image.
+# NOTE (Jul 2026): since PR #93 the API image DOES contain a Go binary
+# (/usr/local/bin/regwatch-proxy, built from the Dockerfile's digest-pinned
+# golang stage), so a Go stdlib CVE can now legitimately fire on the API image
+# too. The remedy there is bumping the pinned golang digest and rebuilding --
+# never an entry in this file (we own that toolchain, unlike esbuild's).
+CVE-2023-45288
+CVE-2024-24790
+CVE-2024-34156
+CVE-2025-61726
+CVE-2025-61729
+CVE-2025-68121
+CVE-2026-25679
+CVE-2026-27145
+CVE-2026-32280
+CVE-2026-32281
+CVE-2026-32283
+CVE-2026-33811
+CVE-2026-33814
+CVE-2026-39820
+CVE-2026-39823
+CVE-2026-39825
+CVE-2026-39836
+CVE-2026-42499
+CVE-2026-42504

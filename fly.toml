@@ -1,0 +1,183 @@
+# Last updated: 2026-08-11
+# The Go proxy holds the public port; Python serves the RAG core behind it.
+app = "amneal"
+primary_region = "iad"
+
+# Fly sends SIGTERM, then SIGKILL after kill_timeout (default 5s). This is a
+# ceiling after the signal, not a fixed delay: a process that exits promptly
+# (uvicorn does) is unaffected. Keep 30s so in-flight requests -- live SSE
+# streams included -- can drain on deploys, and so the Go proxy
+# (20s SIGTERM drain, go/internal/proxy/proxy.go shutdownGrace; see
+# docs/GO_PROXY_ROLLOUT.md) needs no fly.toml change. Plain
+# integer seconds -- the one timeout in fly.toml documented WITHOUT a unit
+# suffix.
+kill_timeout = 30
+
+# Run pending Alembic migrations in a one-off machine BEFORE the rolling deploy,
+# then run the SAME full serving-readiness guard as an app cold boot. Migration
+# first prevents the 2026-06-18 schema-stamp crash loop. Readiness second prevents
+# deterministic live-state drift from reaching the roll: v155 replaced both
+# proxy machines and crash-looped an app machine before revealing that the
+# active profile's HNSW index had been intentionally dropped to recover writes
+# at the database size cap. `regwatch release` now applies the configured
+# serving policy in the one-off phase, before any long-lived machine is touched.
+# The entrypoint skips its pre-command init only for this explicit subcommand so
+# it cannot reject the old stamp before the migration gets a chance to advance it.
+# DATABASE_URL and Fly secrets are injected into the release machine.
+# Assumes an already-bootstrapped/stamped DB (incremental upgrade); a fresh empty
+# Postgres is still bootstrapped by init-db's create_all+stamp path, not here.
+[deploy]
+  release_command = "regwatch release"
+
+# TWO process groups: the Go proxy holds the public port and relays to the app
+# group over 6PN -- phase 3 of docs/GO_PROXY_ROLLOUT.md, re-landing PR #93's
+# flip with the #106 deadlock defused: the proxy's admission /health check now
+# runs against app machines that are ALREADY dual-stack (phase 2 deployed
+# first), so it can pass at admission instead of waiting on the blocked
+# remainder of its own deploy. The explicit app command pins the group name
+# "app" (Fly's default group name, so the existing machines stay mapped to it)
+# and mirrors the image CMD -- tests/test_boot_command_drift.py enforces that
+# mirror instead of trusting a comment to hold it.
+#
+# `regwatch serve` (phase 2) is the DUAL-STACK listener the flip requires: it
+# binds one socket per family, IPv4 for flyd's health checks and Fly Proxy's
+# private-IPv4 backhaul, IPv6 for the phase-3 proxy's AAAA-only 6PN dials.
+#
+# DO NOT "simplify" this back to `uvicorn --host ::`. Single-process uvicorn
+# serves via loop.create_server, and asyncio/uvloop force IPV6_V6ONLY=1 on that
+# path (uvicorn's dual-stack bind_socket() runs only under --reload/--workers>1),
+# so "--host ::" is IPv6-ONLY: it would refuse flyd's IPv4 health-check dials and
+# Fly Proxy's private-IPv4 backhaul, wedging the rolling deploy with a machine out
+# of rotation. Nor to `--host 0.0.0.0`, which is IPv4-only and is precisely what
+# refused the proxy's 6PN dials in #106. Single-process uvicorn cannot serve both
+# families through --host at all; see docs/GO_PROXY_ROLLOUT.md root cause 2 and
+# tests/test_dual_stack_bind.py, which fails on either mutant.
+[processes]
+  app = "regwatch serve"
+  proxy = "regwatch-proxy"
+
+[env]
+  # REQUIRED-EXPLICIT since the 2026-08-14 backfill postmortem: a process
+  # without it refuses to boot instead of guessing. OpenAI as of 2026-08-20 --
+  # generation and embeddings use OpenAI. The database is application-owned
+  # PostgreSQL with pgvector; OpenAI receives no application state. Retrieval picks
+  # its embedder from RETRIEVAL_EMBEDDING_PROFILE (a Fly secret, currently the
+  # text-embedding-3-large @1024 profile); this line is what the boot assert
+  # and the legacy-arm skip logic read.
+  INGEST_EMBEDDING_PROVIDER = "openai"
+  LLM_PROVIDER = "openai"
+  # RegWatch uses exact pgvector search, so the profile needs full coverage but
+  # does not require an HNSW index.
+  PROFILE_HNSW_INDEX_REQUIRED = "false"
+  # The shadow router was a blocking pre-retrieval model call whose result was
+  # discarded. Off the critical Ask path since 2026-08-20.
+  REGWATCH_ROUTE_CALL = "off"
+  AUTH_COOKIE_SECURE = "true"
+  CORS_ALLOW_ORIGINS_CSV = "https://amneal.vercel.app"
+  SENTRY_ENVIRONMENT = "production"
+  # The app only ever serves behind Fly's edge ([http_service] + force_https),
+  # so trust the proxy: the Go login limiter (go/internal/api/clientip.go,
+  # which reads this env var directly since the step-4 auth cutover) keys its
+  # per-IP bucket on the platform-attested Fly-Client-IP (un-spoofable, set by
+  # Fly's edge) instead of collapsing every request to the TCP peer (= Fly's
+  # edge in prod), which would merge all callers into one IP bucket and gut
+  # the spray guard. tests/test_trust_proxy_fly_toml.py guards this line.
+  TRUST_PROXY_HEADERS = "true"
+  # Consumed by the GO PROXY (go/cmd/proxy reads it via api.EnvBool): with it
+  # set, a proxy machine refuses to serve auth when DATABASE_URL is missing.
+  # The Python side no longer reads it -- since R5 there is no SQLite fallback
+  # and store/db.py refuses an empty DATABASE_URL unconditionally.
+  REQUIRE_DATABASE_URL = "true"
+  # Step-5 cutover pin (docs/GO_NATIVE_QUERY_ROLLOUT.md): the Go proxy serves
+  # POST /query natively (buffered CompleteQuery). Flipped via a Fly secret on
+  # Jul 24 2026 and proven live; pinned here so the flag state is versioned.
+  # The secret of the same name is unset once this line deploys (secrets take
+  # precedence over [env], so the overlap window is safe/identical). Revert =
+  # delete this line + deploy, or re-set the secret to "false" for instant
+  # rollback without a CI cycle.
+  GO_NATIVE_QUERY = "true"
+  # The two flags that select the SERVED synthesis prompt. Both have been on in
+  # prod as Fly secrets since 2026-08-10 (#179/#182), but the code defaults are
+  # false, so an unset or cleared secret silently reinstated the v6
+  # cite-or-refuse prompt with its NO_EVIDENCE sentinel -- a policy rollback
+  # with no deploy and no diff. Pinning them here makes false a deliberate act.
+  # Same precedence note as GO_NATIVE_QUERY above: a Fly SECRET of the same name
+  # still wins over [env], so an incident rollback is `fly secrets set
+  # REGWATCH_SELECTIVE_CITATION=false` with no CI cycle, and the secrets can be
+  # unset once this line deploys (the overlap window is identical either way).
+  # The code defaults in config/settings.py stay false on purpose: the eval lane
+  # and the ledger pin the flag-off bytes.
+  REGWATCH_PROSE_SYNTHESIS = "true"
+  REGWATCH_SELECTIVE_CITATION = "true"
+  # B4: SENTRY_DSN is a Fly secret (`fly secrets set SENTRY_DSN=...`). Without
+  # it the app boots but logs a loud warning -- errors would otherwise vanish.
+  #
+  # Where the Go proxy relays to. The phase-3 traffic flip is DONE
+  # (docs/GO_PROXY_ROLLOUT.md); the proxy holds the public edge today. Read
+  # ONLY by the proxy's ConfigFromEnv (go/internal/proxy/proxy.go:43) --
+  # nothing in the Python app reads it, so it rides along inert on app
+  # machines ([env] is app-wide on Fly). The 6PN name resolves AAAA/IPv6-only
+  # to RUNNING app-group machines with no health filtering, which is why the
+  # flip needed the phase-2 dual-stack listener first. The proxy listens on
+  # its PORT default 8080, which must match internal_port below.
+  UPSTREAM_URL = "http://app.process.amneal.internal:8000"
+
+[http_service]
+  processes = ["proxy"]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false
+  # CD-2: keep TWO machines running so a rolling deploy (the default strategy)
+  # always leaves one machine serving while the other is replaced -- instead of
+  # stopping the single machine and booting a new one with NOTHING serving
+  # during the grace+init window. This is a floor against autostop, not a
+  # creator. The /livez check below gates each machine back into rotation
+  # before the next is touched.
+  min_machines_running = 2
+
+  # /livez is the APP's process-liveness route (src/regwatch/api/main.py): it
+  # returns {"status": "ok"} and touches no dependency -- no DB session, no
+  # provider, no profile registry. That DB-free body is what keeps the fix in
+  # 35102e1 intact: the END-TO-END /health check this path used to carry fired
+  # every 30s per machine and was a standing source of database activity.
+  #
+  # DB-free but NOT proxy-local. Unlike /healthz (answered by the proxy itself,
+  # go/internal/proxy/proxy.go), this request still runs edge -> proxy -> 6PN
+  # -> uvicorn, so a proxy whose upstream is dead FAILS its check and leaves
+  # rotation instead of serving 502s "healthily" -- proxies doing exactly that
+  # are what made the 2026-08-13 outage last 3h35m.
+  #
+  # TRADEOFF, stated as plainly as 35102e1 stated its own: this re-couples a
+  # proxy machine's rotation to app-group reachability, the coupling 35102e1
+  # removed. While no app machine answers -- overlapping rolls of the two
+  # groups, or an app-wide boot failure -- healthy proxy machines fail this
+  # check too and leave rotation. Accepted: a proxy with no reachable upstream
+  # serves nothing but 502s, so pulling it costs no working capacity, while
+  # leaving it in rotation is precisely the outage this reverses.
+  # [checks.app_health] below is unchanged and still gates the app group's own
+  # roll. Revert this path to "/healthz" if the coupling ever costs more than
+  # the outage it prevents.
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "10s"
+    grace_period = "30s"
+    method = "GET"
+    path = "/livez"
+
+# The app group loses its public service with the flip, and with it the only
+# health check gating its rolling replacement -- an unchecked group rolls on
+# "machine started" (the 2026-06-18 incident class). This machine check
+# restores the exact pre-flip cadence, aimed straight at uvicorn on 8000.
+# flyd dials it over IPv4 -- the phase-2 dual-stack listener is what makes
+# that pass. Top-level checks never affect routing (the app group is private
+# after the flip); this is deploy gating only.
+[checks]
+  [checks.app_health]
+    processes = ["app"]
+    type = "http"
+    port = 8000
+    method = "GET"
+    path = "/health"
+    interval = "30s"
+    timeout = "10s"
+    grace_period = "30s"

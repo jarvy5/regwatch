@@ -1,0 +1,3022 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================================
+   REGWATCH — "Federal Register, with a maker's seal"
+   Editorial, authoritative, warm. An FDA guidance tool that looks like a
+   published guidance document: parchment, navy ink, gold as the official accent.
+   ========================================================================== */
+
+:root {
+  /* Paper / surfaces */
+  --paper: #faf6ec;
+  --paper-2: #f4eede;
+  --paper-3: #efe7d3;
+  --paper-bright: #fffdf8; /* raised surface: composer bar, fields, active rail rows */
+  --edge: #e4d9bf; /* hairline on paper */
+
+  /* Ink */
+  --ink: #16213a; /* brand navy — body + headings */
+  --ink-2: #283450;
+  --ink-soft: #686d80; /* meta, captions — darkened to clear WCAG AA (4.76:1 on paper) */
+  /* Darkened from #9a9784 (only ~2.4-2.7:1 — failed WCAG AA on the text it
+     carries: scopebar, captions, source summaries). #6b6859 clears 4.5:1 on
+     all three paper tones (paper 5.19, paper-2 4.84, paper-3 4.54). */
+  --ink-faint: #6b6859;
+
+  /* Gold — the official accent. Used for rules, seals, markers; not body text. */
+  --gold: #f5b400;
+  --gold-deep: #c98a0c;
+  --gold-ink: #8a5b00; /* legible gold-toned text on paper */
+  --gold-wash: #fcefca;
+
+  /* Serious notice (refusal / stamp) */
+  --oxblood: #7a2e2e;
+  --oxblood-wash: #f3e3df;
+
+  /* Settled green: high-confidence dot; not a brand accent. */
+  --green-settled: #3f7d54;
+
+  --shadow-soft: 0 1px 2px rgba(22, 33, 58, 0.05), 0 14px 34px -20px rgba(22, 33, 58, 0.28);
+  --shadow-lift: 0 2px 4px rgba(22, 33, 58, 0.06), 0 22px 48px -24px rgba(22, 33, 58, 0.34);
+
+  --maxw: 56rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  color: var(--ink);
+  background-color: var(--paper);
+  /* warm depth: a faint radial light from the upper-left */
+  background-image:
+    radial-gradient(120% 90% at 0% -10%, rgba(245, 180, 0, 0.1) 0%, rgba(245, 180, 0, 0) 42%),
+    radial-gradient(100% 80% at 100% 0%, rgba(22, 33, 58, 0.045) 0%, rgba(22, 33, 58, 0) 38%);
+  background-attachment: fixed;
+}
+
+/* Paper grain — a whisper of fractal noise over everything */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.04;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---------- Layout shell ---------- */
+.shell {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-height: 100vh;
+}
+.canvas {
+  flex: 1;
+  min-width: 0;
+  padding: 3.25rem clamp(1.5rem, 5vw, 4.5rem) 4rem;
+}
+.measure {
+  max-width: var(--maxw);
+  /* With the shell reduced to the spine rail, the reading measure centers in
+     the canvas instead of hugging the old sidebar. */
+  margin-inline: auto;
+}
+
+/* ---------- Accessibility ---------- */
+/* Visually hidden, but available to assistive tech (live-region announcers). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+/* Skip to main content — the first focusable element; slides in on keyboard
+   focus so it never forces a keyboard/SR user through the whole sidebar. */
+.skip-link {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 50;
+  transform: translateY(-130%);
+  background: var(--ink);
+  color: var(--paper);
+  padding: 0.55rem 0.9rem;
+  border-radius: 0 0 4px 0;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-decoration: none;
+  transition: transform 0.12s ease;
+}
+.skip-link:focus {
+  transform: translateY(0);
+  outline: 2px solid var(--gold);
+}
+/* A single branded keyboard-focus ring for interactive elements that don't
+   carry their own focus treatment (the .field inputs keep their gold glow).
+   Navy for a guaranteed 3:1 contrast on the cream/gold palette. Zero
+   specificity via :where() so component styles can still override it. */
+:where(a, button, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+main:focus {
+  outline: none;
+}
+
+/* ---------- Canvas top: product-under-review bar ---------- */
+/* Negative margins break it out of the canvas padding to a full-bleed strip;
+   its own padding re-aligns the content with the column. Sticky so it persists
+   as the (often long) page scrolls. */
+.scopebar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: baseline;
+  gap: 0.7rem;
+  margin: -3.25rem calc(-1 * clamp(1.5rem, 5vw, 4.5rem)) 2.4rem;
+  padding: 0.62rem clamp(1.5rem, 5vw, 4.5rem);
+  background: var(--paper-2);
+  border-bottom: 1px solid var(--edge);
+}
+.scopebar__eye {
+  flex: none;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.6rem;
+  font-weight: 500;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.scopebar__name {
+  font-family: var(--font-display), serif;
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.scopebar__appl {
+  font-size: 0.7rem;
+  color: var(--gold-ink);
+  background: var(--gold-wash);
+  border: 1px solid var(--gold-ink);
+  border-radius: 2px;
+  padding: 0.05rem 0.42rem;
+}
+.scopebar__clear {
+  margin-left: auto;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px; /* WCAG 2.5.8 target size; negative margin keeps the baseline */
+  margin-top: -0.25rem;
+  margin-bottom: -0.25rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+  background: none;
+  border: none;
+  padding: 0 0.25rem;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.scopebar__clear:hover {
+  color: var(--oxblood);
+}
+/* Empty-state "pin one here" reads as part of the sentence, not a control
+   floated to the bar's far edge. */
+.scopebar__clear--flow {
+  margin-left: 0;
+}
+.scopebar__empty {
+  font-size: 0.76rem;
+  color: var(--ink-faint);
+}
+/* Inline product picker living in the bar — resolve-backed setter. */
+.scopebar__picker {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  flex: 1;
+}
+.scopebar__field {
+  width: auto;
+  max-width: 15rem;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.86rem;
+  border-radius: 6px;
+}
+.scopebar__picker .btn {
+  padding: 0.42rem 0.9rem;
+}
+.scopebar__error {
+  font-size: 0.7rem;
+  color: var(--oxblood);
+}
+
+/* ---------- Ask: conversational thread ---------- */
+.chat {
+  display: flex;
+  flex-direction: column;
+  /* Fill the canvas so the composer rests low and pins to the bottom. */
+  min-height: calc(100vh - 9rem);
+  /* Same centered measure as the other surfaces (the chat column previously
+     leaned on the wide sidebar to cap its line length). */
+  width: 100%;
+  max-width: var(--maxw);
+  margin-inline: auto;
+}
+.chat__head {
+  margin-bottom: 1.1rem;
+}
+.chat__sub {
+  margin: 0.5rem 0 0;
+  max-width: 40rem;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+.chat__thread {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.35rem;
+  padding-bottom: 1.2rem;
+}
+.chat__note {
+  font-size: 0.74rem;
+  color: var(--ink-faint);
+}
+/* Docket header of a reopened conversation: its filed identity (title + opened
+   date) above the transcript, like a case caption. Only rehydrated threads
+   have server meta, so live conversations never show one. */
+.chat__docket {
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--edge);
+}
+.chat__docket-title {
+  margin: 0.45rem 0 0.3rem;
+  font-family: var(--font-display), Georgia, serif;
+  font-weight: 500;
+  font-size: 1.15rem;
+  line-height: 1.25;
+  color: var(--ink);
+}
+.chat__docket-date {
+  margin: 0;
+  font-size: 0.7rem;
+  color: var(--ink-faint);
+}
+.chat__empty {
+  margin-top: 0.75rem;
+}
+.chat__empty-kicker {
+  margin: 0 0 0.55rem;
+}
+/* The opening question, set large in the display serif — the page's thesis, in
+   the subject's own voice, not a neutral "Ask a question" label. */
+.chat__empty-lead {
+  font-family: var(--font-display), Georgia, serif;
+  font-weight: 500;
+  font-size: clamp(1.55rem, 3.4vw, 2.05rem);
+  line-height: 1.08;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  margin: 0 0 0.7rem;
+}
+.chat__empty-note {
+  max-width: 34rem;
+  margin: 0 0 1.7rem;
+  font-size: 0.94rem;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+/* Starter inquiries, grouped by kind — the group label encodes what the corpus
+   can answer (structure as information), so the empty state teaches the range. */
+.chat__starters {
+  display: flex;
+  flex-direction: column;
+  gap: 1.05rem;
+}
+.starter__kind {
+  margin: 0 0 0.5rem;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.chat__examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* One turn: user bubble (right) or assistant avatar + message (left). */
+.chat-row {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
+}
+.chat-row--user {
+  justify-content: flex-end;
+}
+/* The docket margin: the assistant's avatar column. Narrow viewports get just
+   the avatar; >=1100px it widens into a marginal provenance rail (see the
+   min-width query beside the 860px block below). */
+.chat-row__margin {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  width: 1.7rem;
+}
+/* Marginalia (time filed, confidence dot) exist only on the wide
+   rail -- hidden by default, revealed by the min-width query. */
+.marginalia {
+  display: none;
+}
+.avatar {
+  flex: none;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 999px;
+  /* Gold discipline (Ask): on this surface gold == "sourced", reserved to the
+     citation stamp / sources. The avatar is navy ink, not gold. */
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.56rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  display: grid;
+  place-items: center;
+  margin-top: 0.1rem;
+  box-shadow: inset 0 0 0 1px rgba(22, 33, 58, 0.4);
+}
+.bubble--user {
+  max-width: 80%;
+  background: #ece3cf;
+  color: var(--ink);
+  border: 1px solid var(--edge);
+  border-radius: 13px;
+  border-top-right-radius: 4px;
+  padding: 0.55rem 0.9rem;
+  font-size: 1rem;
+  line-height: 1.45;
+}
+.msg {
+  flex: 1;
+  min-width: 0;
+}
+.msg__body {
+  font-size: 1rem;
+  line-height: 1.62;
+  color: var(--ink);
+}
+.msg__body .prose {
+  font-size: 1rem;
+}
+/* Provisional streaming draft: the answer as it types, BEFORE citation
+   validation. Muted + labelled so it never reads as a settled, sourced answer;
+   it carries no citation stamps / drawer / confidence (INV-1/INV-2) and is
+   replaced by the validated turn when the result frame lands. The draft is now
+   citation-less Markdown (no pre-wrap needed) -- same typography as the settled
+   answer, so settling doesn't reflow the whole reply. */
+.msg__body--draft {
+  color: var(--ink-soft);
+}
+/* .prose sets --ink; inherit instead so the draft keeps its muted register. */
+.msg__body--draft .prose {
+  color: inherit;
+}
+/* The draft is WHOLLY muted: .prose paints headings navy and list markers
+   gold, but gold means "sourced" on this surface and navy is the settled
+   voice -- unvalidated output inherits the muted ink everywhere instead.
+   (Links are neutralized structurally: the draft's Markdown renders them as
+   plain spans, so .prose a never applies.) */
+.msg__body--draft .prose h1,
+.msg__body--draft .prose h2,
+.msg__body--draft .prose h3 {
+  color: inherit;
+}
+.msg__body--draft .prose li::marker {
+  color: inherit;
+}
+/* The mono kicker (structured-claims) is muted the same way -- it must not
+   read as a settled subsection heading before the answer validates. */
+.msg__body--draft .prose h4 {
+  color: inherit;
+}
+/* A one-word caption, not a promise about verification: the pulsing dot is
+   already the liveness signal, and the SR-facing "the verified answer will
+   follow" lives in the aria-live milestone (page.tsx). Sentence case in the
+   body face -- an uppercase tracked mono tag under a half-written sentence
+   read like a machine state label. */
+.msg__drafting {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  margin: 0.55rem 0 0;
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+}
+.msg__drafting-dot {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 999px;
+  background: var(--gold-deep);
+  animation: ticker-pulse 1.6s ease-in-out infinite;
+}
+/* A refusal / out-of-scope reply stays visibly a refusal — oxblood seam, a
+   tag, never the cream of a normal cited answer (INV-2). */
+.msg__declined {
+  border-left: 2px solid var(--oxblood);
+  background: var(--oxblood-wash);
+  border-radius: 0 6px 6px 0;
+  padding: 0.7rem 0.9rem;
+  color: #5a2222;
+}
+.msg__declined .msg__declined-tag {
+  display: block;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--oxblood);
+  margin-bottom: 0.35rem;
+}
+.msg__declined p {
+  margin: 0;
+  line-height: 1.55;
+}
+.msg__audit {
+  margin: 0.7rem 0 0;
+  font-size: 0.7rem;
+  color: var(--ink-faint);
+}
+/* Stream-fallback disclosure: the draft vanished mid-type, so the settled turn
+   says why. Transport detail, not epistemic status -- quiet ink, never oxblood. */
+.msg__fallback {
+  margin: 0.7rem 0 0;
+  font-size: 0.7rem;
+  color: var(--ink-faint);
+}
+/* Why a turn was declined / clarified — a quiet mono caption under the tag or
+   prompt. Text only; carries no grounding (INV-2). */
+.msg__reason {
+  margin: 0.45rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--ink-soft);
+}
+.msg__declined .msg__reason {
+  color: #6a4a4a; /* readable within the oxblood wash */
+}
+/* "Likely transient" cue on infrastructure failures only -- a quiet next step,
+   subordinate to the reason line it follows. */
+.msg__declined .msg__retry {
+  margin: 0.45rem 0 0;
+  font-size: 0.72rem;
+  color: #6a4a4a;
+}
+/* INV-1 backstop: an answer that arrived with zero citations is an anomaly and
+   must read like one. Mirrors the declined register (oxblood seam + wash, mono
+   uppercase tag) under its OWN class -- INV-2 tests key on .msg__declined, so
+   that class stays reserved for refusals/scope. */
+.msg__ungrounded {
+  margin: 0.7rem 0 0;
+  border-left: 2px solid var(--oxblood);
+  background: var(--oxblood-wash);
+  border-radius: 0 6px 6px 0;
+  padding: 0.7rem 0.9rem;
+  color: #5a2222;
+}
+.msg__ungrounded .msg__ungrounded-tag {
+  display: block;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--oxblood);
+  margin-bottom: 0.35rem;
+}
+.msg__ungrounded p {
+  margin: 0;
+  line-height: 1.55;
+}
+/* "Interpreted as: …" — a subordinate caption ABOVE the answer body, showing how
+   a terse question was read when the rewrite adds information. */
+.msg__interp {
+  margin: 0 0 0.4rem;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+/* Coarse confidence band on a cited answer — High/Moderate, never the raw
+   float. Reads hedged near the refusal threshold. It now sits inside the
+   Sources summary row (.sources__row), so it carries no margin of its own and
+   drops the uppercase mono register: a stamped block under every answer read
+   as a machine verdict rather than a colleague's aside. */
+.confidence {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+.confidence__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--ink-faint);
+}
+.confidence--high .confidence__dot {
+  background: var(--green-settled); /* a clear-cut retrieval */
+}
+.confidence--moderate .confidence__dot {
+  background: var(--gold-deep); /* hedged amber near the threshold */
+}
+/* Revision provenance on a source (drawer + reference): FDA recommended date and
+   the "what changed" note. Display-only, subordinate to the snippet. */
+.recency {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0.35rem 0;
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+.recency__rev {
+  color: var(--gold-ink);
+  font-weight: 600;
+}
+.recency__diff {
+  color: var(--ink-soft);
+}
+/* Explicit "not recorded" state (drawer + references): absence of a revision
+   date is provenance information too -- say so instead of rendering nothing. */
+.recency__none {
+  color: var(--ink-faint);
+}
+
+/* Citation chips: compact grounding, each links to its FDA source. The full
+   snippet stays one tap away in the Sources disclosure, so grounding (INV-1)
+   is never hidden, only folded. */
+.cites {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+  margin-top: 0.7rem;
+}
+.cite {
+  /* A <button> (opens the evidence drawer), styled to read as the same gold chip
+     the old <a> did — hence the appearance/cursor resets. */
+  appearance: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  max-width: 18rem;
+  min-height: 24px; /* WCAG 2.5.8 target size — padding keeps the visual compact */
+  font-family: var(--font-mono), monospace;
+  font-size: 0.68rem;
+  color: var(--gold-ink);
+  background: var(--gold-wash);
+  border: 1px solid var(--gold-deep);
+  border-radius: 7px;
+  padding: 0.14rem 0.5rem;
+  text-decoration: none;
+  transition: background 0.15s ease, filter 0.15s ease;
+}
+
+/* The signature: an inline, claim-anchored citation stamp. SQUARE corners +
+   mono [n] set it apart from the rounded .pill / .chip; gold marks it as the
+   one sourced element in the prose. Opens the cited passage in the drawer. */
+/* The border is the stamp's ONLY boundary: the gold wash is ~1.1:1 against the
+   page, so nothing else marks where the control starts. --gold-deep is 2.90:1
+   there and misses 1.4.11's 3:1; --gold-ink is 5.4:1 and is the same ink the
+   [n] is already set in. */
+.cite-stamp {
+  appearance: none;
+  cursor: pointer;
+  /* inline-flex over the baseline so the [n] sits with the surrounding text. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: baseline;
+  min-width: 24px; /* WCAG 2.5.8: >=24px wide; height tracks the inline line, */
+  min-height: 18px; /* qualifying under the 2.5.8 inline-target exception. */
+  margin: 0 0.12em;
+  padding: 0 0.34em;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.74em;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--gold-ink);
+  background: var(--gold-wash);
+  border: 1px solid var(--gold-deep);
+  border-radius: 2px; /* square — the anti-pill */
+  text-decoration: none;
+  transition: background 0.12s ease, filter 0.12s ease;
+}
+.cite-stamp:hover {
+  background: #f7e6bf;
+  filter: brightness(1.02);
+}
+.cite:hover {
+  filter: brightness(1.02);
+  background: #f7e6bf;
+}
+.cite__icon {
+  flex: none;
+  width: 0.72rem;
+  height: 0.72rem;
+  opacity: 0.85;
+}
+.cite__label {
+  /* min-width:0 lets this flex child shrink so the ellipsis actually engages. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sources {
+  margin-top: 0.6rem;
+}
+.sources > summary {
+  cursor: pointer;
+  color: var(--ink-faint);
+}
+/* The quiet row: confidence band and source count on one line, the whole line
+   being the Sources disclosure's trigger. Deliberately NOT a flex container --
+   `display: flex` on a <summary> suppresses the native disclosure marker, and
+   the marker is the only affordance saying this row opens. Inline flow with a
+   margin gap keeps both. */
+.sources__row {
+  font-size: 0.78rem;
+}
+.sources__count {
+  margin-left: 0.6rem;
+  color: var(--ink-faint);
+}
+.prov {
+  margin-top: 1rem;
+}
+.prov > summary {
+  cursor: pointer;
+  color: var(--ink-faint);
+}
+/* Provenance as a labelled record, not an id dump: small mono definition rows
+   (Audit / Model / Filed / Trace), the raw trace shortened with the full value
+   in its title. */
+.prov__grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  margin: 0.55rem 0 0;
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+}
+.prov__row {
+  display: flex;
+  gap: 0.7rem;
+}
+.prov__row dt {
+  flex: none;
+  width: 3.6rem;
+  padding-top: 0.12rem;
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.prov__row dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Clarify options + example prompts: soft pills, matching the mockup. */
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.pill {
+  font-size: 0.86rem;
+  color: var(--ink-2);
+  background: #fbf7ec;
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  padding: 0.42rem 0.72rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.pill:hover:not(:disabled) {
+  border-color: var(--gold-deep);
+  background: var(--gold-wash);
+  color: var(--ink);
+}
+.pill:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+/* Failed send: transport-register notice under the unanswered inquiry turn.
+   Quiet mono oxblood TEXT only -- deliberately NOT the .msg__declined block:
+   that register is an epistemic verdict (INV-2); this is plumbing. Right-
+   aligned because it belongs to the user bubble above it. */
+.sendfail {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+.sendfail__msg {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--oxblood);
+}
+.sendfail__retry {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--oxblood);
+  background: transparent;
+  border: 1px solid var(--edge);
+  border-radius: 2px;
+  padding: 0.2rem 0.55rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+.sendfail__retry:hover {
+  border-color: var(--oxblood);
+}
+
+/* Composer: a rounded bar pinned to the bottom with a round gold send. */
+.composer {
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  background: var(--paper);
+  padding: 0.8rem 0 0.5rem;
+}
+.composer__error {
+  margin: 0 0 0.6rem;
+  font-size: 0.78rem;
+  color: var(--oxblood);
+}
+.composer__filters {
+  margin-bottom: 0.5rem;
+}
+.composer__filters > summary {
+  cursor: pointer;
+  color: var(--ink-faint);
+  width: fit-content;
+}
+.composer__filters-grid {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  margin-top: 0.6rem;
+}
+/* Active-scope chips between the folded filter editor and the bar: the
+   details element hides the scope, so this row is what makes it visible. */
+.composer__scope {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+/* AA contrast: .chip's --ink-soft sits at 4.17:1 on the chip's --paper-3
+   ground -- under the 4.5:1 small-text floor at this ~11px size. --ink-2
+   clears it with room (10:1). Repeated .chip outranks the base .chip color. */
+.chip.composer__scope-chip,
+.chip.composer__restore {
+  color: var(--ink-2);
+}
+/* Uppercased key label inside a scope chip (e.g. INGREDIENT albuterol).
+   --ink-faint clears AA here (4.54:1 on --paper-3). */
+.composer__scope-chip .chip__k {
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+/* Clearing scope / restoring a question are neutral acts: hover stays in the
+   ink/edge register -- button.chip's default hover is gold-washed, and gold
+   means "sourced" here. Extra specificity (.chip repeated) outranks that base
+   hover rule. */
+button.chip.composer__scope-chip:hover:not(:disabled),
+button.chip.composer__restore:hover:not(:disabled) {
+  border-color: var(--ink-faint);
+  background: var(--paper-2);
+  color: var(--ink);
+}
+/* Restore chip: hands a cancelled question back; the quoted text is a
+   recognition cue, not a transcript (JS truncates it). */
+.composer__restore {
+  margin-bottom: 0.5rem;
+}
+.composer__restore-quote {
+  color: var(--ink-faint);
+}
+/* Why the composer is paused while a conversation opens (typing stays live). */
+.composer__hint {
+  margin: 0.45rem 0 0;
+  font-size: 0.7rem;
+  color: var(--ink-faint);
+}
+.composer__bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  background: var(--paper-bright);
+  border: 1px solid var(--edge);
+  border-radius: 14px;
+  padding: 0.4rem 0.4rem 0.4rem 1rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.composer__bar:focus-within {
+  border-color: var(--gold-deep);
+  box-shadow: 0 0 0 3px rgba(245, 180, 0, 0.16);
+}
+.composer__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  resize: none;
+  font-family: var(--font-body), sans-serif;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--ink);
+  padding: 0.4rem 0;
+  max-height: 9rem;
+  /* Auto-grow to max-height as the analyst types a longer question. Native
+     where supported; page.tsx syncs scrollHeight as the fallback. overflow-y
+     auto so it scrolls once it hits the cap. */
+  field-sizing: content;
+  overflow-y: auto;
+  outline: none;
+}
+.composer__input::placeholder {
+  color: var(--ink-faint);
+}
+.composer__send {
+  flex: none;
+  width: 2.15rem;
+  height: 2.15rem;
+  border-radius: 9px;
+  border: 0;
+  /* Gold discipline (Ask): the send CTA is navy ink with a paper glyph — gold
+     is reserved to grounding (the citation stamp / sources). */
+  background: var(--ink);
+  color: var(--paper);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: filter 0.15s ease, transform 0.06s ease;
+}
+.composer__send:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+.composer__send:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.composer__send:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* ---------- Typographic primitives ---------- */
+.kicker {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--gold-ink);
+}
+.display {
+  font-family: var(--font-display), Georgia, serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.02;
+  color: var(--ink);
+}
+.code {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-variant-ligatures: none;
+}
+
+/* The RegWatch brush wordmark: gold gradient ink */
+.wordmark {
+  font-family: var(--font-script), cursive;
+  background: linear-gradient(96deg, var(--gold) 0%, var(--gold-deep) 92%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--gold);
+  line-height: 0.9;
+  /* The script's ascenders overrun a 0.9 line box, and background-clip: text
+     paints no gradient outside the background box -- the mark's tall strokes
+     rendered with their tops sliced flat. Pad the paint area out, then pull the
+     same amount back in margin so the mark still occupies its original space.
+     Vertical only: horizontal padding is not needed (the swashes measure clear)
+     and would eat the flex gap between the seal and the mark in <Wordmark>. */
+  padding: 0.7em 0;
+  margin: -0.7em 0;
+  filter: drop-shadow(0 1px 1px rgba(201, 138, 12, 0.25));
+}
+
+/* Gold wax-seal emblem (concentric ring + center) */
+.seal {
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 45%),
+    conic-gradient(from 210deg, var(--gold-deep), var(--gold), var(--gold-deep));
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.35),
+    inset 0 0 0 3px var(--gold-deep),
+    0 2px 6px rgba(138, 91, 0, 0.35);
+}
+.seal::after {
+  content: "RW";
+  font-family: var(--font-mono), monospace;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #3a2600;
+}
+
+/* ---------- Rules ---------- */
+.rule-gold {
+  height: 2px;
+  border: 0;
+  background: linear-gradient(90deg, var(--gold) 0%, var(--gold-deep) 26%, transparent 100%);
+}
+.hair {
+  border: 0;
+  border-top: 1px solid var(--edge);
+}
+
+/* ---------- Document card ---------- */
+.doc {
+  position: relative;
+  background: linear-gradient(180deg, var(--paper-bright), var(--paper-2));
+  border: 1px solid var(--edge);
+  border-radius: 3px;
+  box-shadow: var(--shadow-soft);
+}
+.doc--pad {
+  padding: 1.6rem 1.75rem;
+}
+/* a gold spine down the left edge */
+.doc--seal::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: linear-gradient(180deg, var(--gold), var(--gold-deep));
+  border-radius: 3px 0 0 3px;
+}
+
+/* ---------- Fields ---------- */
+.field {
+  width: 100%;
+  font-family: var(--font-body), sans-serif;
+  font-size: 1rem;
+  color: var(--ink);
+  background: var(--paper-bright);
+  border: 1px solid var(--edge);
+  border-radius: 2px;
+  padding: 0.7rem 0.85rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.field::placeholder {
+  color: var(--ink-faint);
+}
+.field:focus-visible {
+  outline: none;
+  background: #fff;
+  border-color: var(--gold-deep);
+  box-shadow: 0 0 0 3px rgba(245, 180, 0, 0.18);
+}
+.field--inquiry {
+  font-family: var(--font-display), serif;
+  font-size: 1.4rem;
+  font-weight: 400;
+  line-height: 1.4;
+  padding: 0.4rem 0;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid var(--edge);
+  border-radius: 0;
+  resize: vertical;
+}
+.field--inquiry:focus-visible {
+  background: transparent;
+  box-shadow: none;
+  border-bottom-color: var(--gold-deep);
+}
+
+/* ---------- Buttons ---------- */
+.btn {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #2a1c00;
+  background: linear-gradient(96deg, var(--gold) 0%, var(--gold-deep) 100%);
+  border: 0;
+  border-radius: 2px;
+  padding: 0.72rem 1.4rem;
+  cursor: pointer;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.4) inset, 0 6px 16px -8px rgba(138, 91, 0, 0.7);
+  transition: transform 0.06s ease, filter 0.15s ease, box-shadow 0.15s ease;
+}
+.btn:hover:not(:disabled) {
+  filter: brightness(1.05) saturate(1.05);
+}
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: progress;
+}
+.btn--ghost {
+  background: transparent;
+  color: var(--gold-ink);
+  box-shadow: inset 0 0 0 1px var(--edge);
+}
+.btn--ghost:hover:not(:disabled) {
+  box-shadow: inset 0 0 0 1px var(--gold-deep);
+  background: var(--gold-wash);
+  filter: none;
+}
+/* Navy primary. Gold is the official accent -- rules, seals, markers -- so on a
+   surface where the wax seal carries it at full size, the button steps back to
+   the app's ink instead of competing for the same ink. */
+.btn--ink {
+  color: var(--paper);
+  background: linear-gradient(96deg, var(--ink-2) 0%, var(--ink) 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.12) inset,
+    0 6px 16px -8px rgba(22, 33, 58, 0.7);
+}
+
+/* ---------- Clarify option (an "inquiry continued" card) ---------- */
+.opt {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  width: 100%;
+  text-align: left;
+  background: var(--paper-bright);
+  border: 1px solid var(--edge);
+  border-radius: 2px;
+  padding: 0.85rem 1rem;
+  cursor: pointer;
+  color: var(--ink);
+  font-size: 0.98rem;
+  transition: border-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+}
+.opt:hover:not(:disabled) {
+  border-color: var(--gold-deep);
+  box-shadow: var(--shadow-soft);
+  transform: translateX(2px);
+}
+.opt:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+.opt__no {
+  flex: none;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--gold-ink);
+  width: 1.6rem;
+  height: 1.6rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--gold-wash);
+  box-shadow: inset 0 0 0 1px var(--gold-deep);
+}
+.opt__arrow {
+  margin-left: auto;
+  color: var(--gold-deep);
+  transition: transform 0.15s ease;
+}
+.opt:hover:not(:disabled) .opt__arrow {
+  transform: translateX(3px);
+}
+
+/* ---------- References (the signature: cited answer = published excerpt) ---------- */
+.ref {
+  position: relative;
+  padding: 0.9rem 0 0.9rem 2.4rem;
+  border-top: 1px solid var(--edge);
+}
+.ref:first-child {
+  border-top: 0;
+}
+.ref__no {
+  position: absolute;
+  left: 0;
+  top: 0.95rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--gold-ink);
+}
+.ref__src {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+.ref__page {
+  color: var(--ink-soft);
+}
+.ref__quote {
+  margin: 0.4rem 0 0.5rem;
+  padding-left: 0.9rem;
+  border-left: 2px solid var(--gold);
+  font-family: var(--font-display), serif;
+  font-style: italic;
+  font-size: 0.98rem;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.link {
+  color: var(--gold-ink);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(138, 91, 0, 0.35);
+  transition: border-color 0.15s ease, color 0.15s ease;
+  word-break: break-all;
+}
+.link:hover {
+  color: var(--gold-deep);
+  border-bottom-color: var(--gold-deep);
+}
+
+/* ---------- Stamp (refusal notice) ---------- */
+.stamp {
+  position: relative;
+  border: 1.5px solid var(--oxblood);
+  border-radius: 3px;
+  background: var(--oxblood-wash);
+  padding: 1.2rem 1.4rem 1.2rem 1.4rem;
+  color: #5a2222;
+}
+.stamp__tag {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--oxblood);
+}
+
+/* ---------- Tag / chip ---------- */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+  background: var(--paper-3);
+  border: 1px solid var(--edge);
+  border-radius: 2px;
+  padding: 0.15rem 0.5rem;
+}
+button.chip {
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+button.chip:hover:not(:disabled) {
+  border-color: var(--gold-deep);
+  background: var(--gold-wash);
+  color: var(--ink);
+}
+button.chip:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+/* ---------- Answer feedback (thumbs on a finding) ---------- */
+.fb {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.fb__btn {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  background: transparent;
+  border: 1px solid var(--edge);
+  border-radius: 2px;
+  padding: 0.3rem 0.65rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.fb__btn:hover:not(:disabled) {
+  border-color: var(--gold-deep);
+  background: var(--gold-wash);
+  color: var(--ink);
+}
+.fb__btn:disabled {
+  opacity: 0.5;
+  cursor: progress;
+}
+.fb__btn--on {
+  border-color: var(--gold-deep);
+  background: var(--gold-wash);
+  color: var(--gold-ink);
+}
+.fb__status {
+  font-size: 0.68rem;
+}
+.fb__note {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.55rem;
+  max-width: 30rem;
+}
+.fb__note .field {
+  font-size: 0.9rem;
+  padding: 0.45rem 0.65rem;
+}
+.fb__note .btn {
+  padding: 0.5rem 0.9rem;
+  white-space: nowrap;
+}
+
+/* ---------- Editorial prose (rendered markdown) ---------- */
+.prose {
+  font-size: 1.04rem;
+  line-height: 1.62;
+  color: var(--ink);
+}
+.prose > :first-child {
+  margin-top: 0;
+}
+.prose h1,
+.prose h2,
+.prose h3 {
+  font-family: var(--font-display), serif;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  margin: 1.4rem 0 0.6rem;
+}
+.prose h1 {
+  font-size: 1.7rem;
+}
+.prose h2 {
+  font-size: 1.35rem;
+}
+.prose h3 {
+  font-size: 1.12rem;
+}
+.prose p {
+  margin: 0.7rem 0;
+}
+.prose ul,
+.prose ol {
+  margin: 0.7rem 0;
+  padding-left: 1.3rem;
+}
+/* Restated because the Tailwind preflight strips list-style -- without this the
+   gold ::marker below never renders. */
+.prose ul {
+  list-style: disc;
+}
+.prose ol {
+  list-style: decimal;
+}
+.prose li {
+  margin: 0.3rem 0;
+}
+.prose li::marker {
+  color: var(--gold-deep);
+}
+/* GFM task lists (the dossier's requirements checklist): the checkbox IS the
+   marker, so the disc goes; the box takes the seal gold. */
+.prose li.task-list-item {
+  list-style: none;
+}
+.prose input[type="checkbox"] {
+  accent-color: var(--gold-deep);
+  margin-right: 0.45rem;
+  vertical-align: -0.08em;
+}
+.prose a {
+  color: var(--gold-ink);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(138, 91, 0, 0.35);
+}
+.prose code {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.86em;
+  background: var(--paper-3);
+  border: 1px solid var(--edge);
+  border-radius: 2px;
+  padding: 0.05em 0.32em;
+}
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.92rem;
+}
+.prose th,
+.prose td {
+  border: 1px solid var(--edge);
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+}
+.prose th {
+  background: var(--paper-3);
+  font-family: var(--font-mono), monospace;
+  font-weight: 600;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+}
+.prose blockquote {
+  margin: 0.9rem 0;
+  padding-left: 1rem;
+  border-left: 2px solid var(--gold);
+  font-style: italic;
+  color: var(--ink-2);
+}
+
+/* ---------- Structured answers: scrollable tables, the pathway matrix, and
+   the mono kicker heading (structured-claims). A GFM table can be wider than
+   the chat column -- Markdown.tsx already wraps every table in this box, so
+   the reply body itself never scrolls horizontally. */
+.prose__scroll {
+  overflow-x: auto;
+  max-width: 100%;
+  margin: 1rem 0;
+  -webkit-overflow-scrolling: touch;
+}
+.prose__scroll > table {
+  /* The table's own margin would double up with the wrapper's. */
+  margin: 0;
+}
+/* Pathway matrix (Ask answers only -- scoped to .msg__body so the dossier
+   and Studio tables keep their own layout): the first column is the row
+   label, so it stays put while the option columns scroll underneath it. */
+.msg__body .prose th:first-child,
+.msg__body .prose td:first-child {
+  position: sticky;
+  left: 0;
+  background: var(--paper);
+}
+.msg__body .prose th:first-child {
+  /* Header first cell reads as a header, same as every other th. */
+  background: var(--paper-3);
+}
+.msg__body .prose th {
+  white-space: nowrap;
+}
+.msg__body .prose td {
+  white-space: normal;
+  color: var(--ink);
+}
+/* The backend leaves a genuinely empty cell for "not applicable" rather than
+   inventing text -- an en dash reads the absence without the model having to
+   author one. */
+.msg__body .prose td:empty::before {
+  content: "\2013";
+  color: var(--ink-faint);
+}
+.msg__body .prose td .cite-stamp {
+  margin: 0;
+}
+/* The mono kicker register for a structured subsection -- NOT a smaller
+   serif heading like h1-h3; it reads as a label, not as more prose gravitas. */
+.prose h4 {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  font-weight: 600;
+  margin: 1.2rem 0 0.4rem;
+}
+
+/* ---------- History rows (inside the docket panel) ---------- */
+.hist {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 2px;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+.hist:hover {
+  background: var(--paper-bright);
+}
+.hist--active {
+  background: var(--paper-bright);
+  box-shadow: inset 3px 0 0 var(--gold);
+}
+.hist__main {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.42rem 0.2rem 0.42rem 0.65rem;
+  text-decoration: none;
+  color: var(--ink-2);
+}
+.hist--active .hist__main {
+  color: var(--ink);
+}
+.hist__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8rem;
+}
+.hist__time {
+  flex: none;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.62rem;
+  color: var(--ink-faint);
+}
+.hist__del {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px; /* WCAG 2.5.8 target size */
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--ink-faint);
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 0.3rem 0.4rem;
+  opacity: 0;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+.hist:hover .hist__del,
+.hist__del:focus-visible {
+  opacity: 1;
+}
+.hist__del:hover {
+  color: var(--oxblood);
+}
+.hist__confirm {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.42rem 0.65rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.68rem;
+  color: var(--oxblood);
+}
+.hist__confirm button {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  color: var(--ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.hist__confirm button:hover {
+  color: var(--oxblood);
+}
+
+/* ---------- Ledger table (Watch) ---------- */
+.ledger {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+.ledger th {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--ink-soft);
+  padding: 0.5rem 0.7rem;
+  border-bottom: 2px solid var(--ink);
+}
+.ledger td {
+  padding: 0.5rem 0.7rem;
+  border-bottom: 1px solid var(--edge);
+  vertical-align: top;
+}
+.ledger tr:hover td {
+  background: var(--gold-wash);
+}
+
+/* The White Paper surface (04) owns its own stylesheet:
+   app/(shell)/whitepaper/whitepaper.css draws the CRA form as the printed
+   document it is, so the cell-ledger styles that used to live here are gone. */
+
+/* ---------- Status ticker (the docket log while a query runs) ----------
+   Each SSE status frame is one ruled docket line: gold rule draws in, the
+   live line carries a pulsing seal-dot, superseded lines dim in place. With
+   reduced motion the log collapses to the single current line, static. */
+.ticker {
+  margin-top: 1.6rem;
+}
+.ticker__line {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.24rem 0;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.74rem;
+  color: var(--ink-soft);
+  transition: opacity 0.3s ease, color 0.3s ease;
+}
+.ticker__line--past {
+  /* Superseded steps stay readable — the log is the point — just settled. */
+  opacity: 0.55;
+}
+.ticker__line--live {
+  color: var(--ink-2);
+}
+.ticker__rule {
+  flex: none;
+  width: 1.7rem;
+  height: 2px;
+  background: linear-gradient(90deg, var(--gold), var(--gold-deep));
+}
+.ticker__line--live .ticker__rule {
+  transform-origin: left;
+  animation: draw 0.45s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.ticker__line--past .ticker__rule {
+  height: 1px;
+  opacity: 0.6;
+}
+@keyframes ticker-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.ticker__dot {
+  flex: none;
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 999px;
+  background: var(--gold-deep);
+  animation: ticker-pulse 1.6s ease-in-out infinite;
+}
+/* Step ordinal — the same numbering the settled turn's provenance log keeps. */
+.ticker__no {
+  flex: none;
+  width: 1.1rem;
+  font-size: 0.62rem;
+  color: var(--ink-faint);
+}
+
+/* ---------- Memorandum (conversational turn) ----------
+   Deliberately quiet: no seal, no card, no references frame. The contrast
+   with a published finding is the point — chat never dresses up as guidance. */
+.memo {
+  max-width: 40rem;
+}
+.memo__body {
+  margin: 0.45rem 0 0;
+  font-family: var(--font-display), Georgia, serif;
+  font-style: italic;
+  font-size: 1.08rem;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+
+/* ---------- Not addressed (partial-answer annotation) ----------
+   Same vocabulary as the white paper's verified-absent cells: dashed border,
+   hollow-ring markers — "this box is empty on purpose", not an error. */
+.na {
+  margin-top: 1.1rem;
+  border: 1px dashed var(--ink-soft);
+  border-radius: 2px;
+  padding: 0.65rem 0.9rem;
+}
+.na__tag {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.na__list {
+  margin: 0.4rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.na__item {
+  position: relative;
+  padding-left: 1.1rem;
+  margin: 0.3rem 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.na__item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.42em;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--paper-bright);
+  box-shadow: inset 0 0 0 1.5px var(--ink-soft);
+}
+
+/* ---------- Suggestions (grounded next steps / refusal redirects) ---------- */
+.suggest {
+  margin-top: 1.2rem;
+}
+.suggest__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.55rem;
+}
+.suggest__opts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin-top: 0.7rem;
+}
+
+/* ---------- Motion: staggered editorial reveal ---------- */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes draw {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.rise {
+  opacity: 0;
+  animation: rise 0.62s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+}
+.draw {
+  transform-origin: left;
+  animation: draw 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+}
+.d1 {
+  animation-delay: 0.05s;
+}
+.d2 {
+  animation-delay: 0.14s;
+}
+.d3 {
+  animation-delay: 0.24s;
+}
+.d4 {
+  animation-delay: 0.34s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise,
+  .draw {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+  /* Ticker degrades to a single static line: no log, no pulse, no draw. */
+  .ticker__line--past {
+    display: none;
+  }
+  .ticker__line--live .ticker__rule,
+  .ticker__dot,
+  .msg__drafting-dot {
+    animation: none;
+  }
+}
+
+/* ---------- The spine rail ----------
+   The shell reduced to a bound edge: seal, the two studio marks, the title
+   lettered down the spine, then the analyst's own things (new chat / history /
+   account). A class, not inline styles, so the media query below can restack it.
+   Two peers need no rule drawn between them, so the hairline that used to fence
+   the numbered chapters off from Studio went with the numerals. */
+.rail {
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 6; /* above the sticky scopebar (5) so the flyout labels clear it */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  width: 3.4rem;
+  height: 100vh;
+  padding: 0.85rem 0 0.8rem;
+  background: linear-gradient(180deg, var(--paper-2), var(--paper-3));
+  border-right: 1px solid var(--edge);
+}
+.rail__seal {
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+}
+.rail__seal-mark {
+  width: 1.9rem;
+  height: 1.9rem;
+}
+.rail__nav {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.26rem;
+  margin-top: 0.65rem;
+}
+.rail__stop {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 2.3rem;
+  height: 2.1rem;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--ink-faint);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+.rail__stop:hover,
+.rail__stop--open {
+  background: var(--paper-bright);
+  color: var(--ink);
+}
+/* THE ROOM YOU ARE IN. The bar is drawn in --gold-ink (5.8:1 on the row it sits
+   on) and not --gold, which is 1.8:1 there: this is the only mark separating the
+   studio you are in from the one under your pointer, and hover already takes the
+   same bright ground, so an indicator below 3:1 left the two states all but
+   identical. */
+.rail__stop--active {
+  background: var(--paper-bright);
+  color: var(--gold-ink);
+  box-shadow: inset 3px 0 0 var(--gold-ink);
+}
+/* Said twice on purpose, because the rail restacks: the inset bar reads down the
+   left edge of a vertical spine, and the ring reads wherever the stop is. */
+.rail__stop--active .rail__mark {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.35),
+    0 0 0 2px var(--paper-bright),
+    0 0 0 3px var(--gold-ink);
+}
+/* Each studio wears a lettered gold mark: a place, not a step in a sequence.
+   The letter is decorative (aria-hidden); the flyout and the aria-label carry
+   the name. */
+.rail__mark {
+  display: grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 5px;
+  font-family: var(--font-display), serif;
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: #3a2600;
+  background: linear-gradient(150deg, var(--gold), var(--gold-deep));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+/* BOTH MARKS ARE STRUCK AT FULL WEIGHT. Dimming the one you are not in bought
+   1.09:1 of state cue -- the two chips were all but the same colour -- and cost
+   the letter its contrast: 4.99:1 at the light end of the gradient and 3.44:1
+   at the dark end, against 7.83:1 and 4.89:1 undimmed. The state moved onto the
+   stop above, where there is room to say it at 5.8:1 instead. */
+/* The volume's title, lettered down the free run of the spine. */
+.rail__wordmark {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0.8rem 0 0.6rem;
+  writing-mode: vertical-rl;
+  font-size: 0.6rem;
+  font-weight: 500;
+  letter-spacing: 0.52em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  opacity: 0.75;
+  user-select: none;
+  overflow: hidden;
+}
+.rail__foot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.26rem;
+}
+.rail__plus {
+  font-family: var(--font-mono), monospace;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+.rail__account {
+  position: relative;
+}
+.rail__avatar {
+  display: grid;
+  place-items: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.58rem;
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px rgba(22, 33, 58, 0.4);
+}
+/* Backend-unreachable marker on the account stop; the popover says the rest. */
+.rail__status {
+  position: absolute;
+  right: 0.26rem;
+  bottom: 0.2rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--oxblood);
+  box-shadow: 0 0 0 2px var(--paper-2);
+}
+/* Flyout label beside a stop — hover/keyboard only; the aria-label is the
+   accessible name, so the flyout stays decorative. */
+.rail__tip {
+  position: absolute;
+  left: calc(100% + 0.55rem);
+  top: 50%;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.05rem;
+  padding: 0.34rem 0.62rem;
+  border-radius: 3px;
+  background: var(--ink);
+  color: var(--paper);
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(-50%) translateX(-4px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  pointer-events: none;
+}
+.rail__tip-label {
+  font-family: var(--font-body), sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.rail__tip-note {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(250, 246, 236, 0.78);
+}
+.rail__stop:hover .rail__tip,
+.rail__stop:focus-visible .rail__tip {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+/* ---------- History docket (slides from the rail) ---------- */
+.histpanel__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  /* Transparent click-catcher: a quick switcher, not a modal moment. */
+  background: transparent;
+}
+.histpanel {
+  position: fixed;
+  left: 3.4rem;
+  top: 0;
+  bottom: 0;
+  z-index: 121;
+  display: flex;
+  flex-direction: column;
+  width: min(21rem, calc(100vw - 3.4rem));
+  padding: 1.05rem 1.05rem 0.5rem;
+  background: linear-gradient(180deg, var(--paper), var(--paper-2));
+  border-right: 1px solid var(--edge);
+  box-shadow: var(--shadow-lift);
+  animation: panelIn 0.16s ease;
+}
+@keyframes panelIn {
+  from {
+    transform: translateX(-14px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+.histpanel__head {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+.histpanel__head .kicker {
+  flex: 1;
+  font-size: 0.62rem;
+}
+.histpanel__new {
+  font-size: 0.66rem;
+  border-bottom: none;
+}
+.histpanel__close,
+.acct__close {
+  appearance: none;
+  cursor: pointer;
+  flex: none;
+  width: 1.7rem;
+  height: 1.7rem;
+  border: 1px solid var(--edge);
+  border-radius: 7px;
+  background: var(--paper-3);
+  color: var(--ink-soft);
+  font-size: 1rem;
+  line-height: 1;
+}
+.histpanel__close:hover,
+.acct__close:hover {
+  color: var(--ink);
+  background: var(--paper-2);
+}
+.histpanel__search {
+  margin-top: 0.75rem;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.86rem;
+  border-radius: 6px;
+}
+.histpanel__scroll {
+  flex: 1;
+  min-height: 0;
+  margin-top: 0.55rem;
+  padding-bottom: 0.8rem;
+  overflow-y: auto;
+}
+.histpanel__group {
+  margin-top: 0.9rem;
+}
+.histpanel__group:first-child {
+  margin-top: 0.2rem;
+}
+.histpanel__day {
+  margin: 0 0 0.3rem;
+  font-size: 0.58rem;
+  letter-spacing: 0.26em;
+  color: var(--ink-faint);
+}
+.histpanel__note {
+  padding: 0.6rem 0.2rem;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--ink-faint);
+}
+
+/* ---------- Account popover (opens from the rail's foot) ---------- */
+.acct__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: transparent;
+}
+.acct {
+  position: fixed;
+  left: 3.4rem;
+  bottom: 0.7rem;
+  z-index: 121;
+  width: min(19.5rem, calc(100vw - 4.2rem));
+  padding: 1rem 1.1rem;
+  background: linear-gradient(180deg, var(--paper-bright), var(--paper-2));
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  box-shadow: var(--shadow-lift);
+  animation: panelIn 0.16s ease;
+}
+.acct__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+.acct__who {
+  flex: 1;
+  min-width: 0;
+}
+.acct__name {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.acct__email {
+  margin: 0.15rem 0 0;
+  font-size: 0.7rem;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.acct__signout {
+  margin-top: 0.6rem;
+}
+.acct .hair {
+  margin: 0.85rem 0 0.7rem;
+}
+.acct__kicker {
+  font-size: 0.6rem;
+  color: var(--ink-faint);
+}
+.acct__colophon {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  margin: 0.45rem 0 0;
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+}
+.acct__row {
+  display: flex;
+  gap: 0.6rem;
+}
+.acct__row dt {
+  flex: none;
+  width: 6.2rem;
+  padding-top: 0.1rem;
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.acct__row dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.acct__note {
+  margin: 0.45rem 0 0;
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+}
+.acct__note--down {
+  color: var(--oxblood);
+}
+.acct__creed {
+  margin: 0.85rem 0 0;
+  font-family: var(--font-display), serif;
+  font-style: italic;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+
+/* ---------- Responsive: restack the shell below the desktop breakpoint ----------
+   Below ~860px the spine turns horizontal: a slim top strip with the seal,
+   the numbered stops, and the analyst cluster right-aligned. The flyout labels
+   are hover furniture, so they simply switch off on touch-sized screens (every
+   stop keeps its aria-label). */
+@media (max-width: 860px) {
+  .shell {
+    flex-direction: column;
+    min-height: 100vh;
+  }
+  .rail {
+    position: static;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.2rem;
+    width: 100%;
+    height: auto;
+    padding: 0.5rem 0.75rem;
+    border-right: 0;
+    border-bottom: 1px solid var(--edge);
+  }
+  .rail__nav {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.1rem;
+    margin-top: 0;
+  }
+  .rail__wordmark {
+    display: none;
+  }
+  .rail__foot {
+    flex-direction: row;
+    margin-left: auto;
+  }
+  .rail__tip {
+    display: none;
+  }
+  .histpanel {
+    left: 0;
+    width: min(24rem, 100vw);
+  }
+  .acct {
+    left: 0.7rem;
+    bottom: auto;
+    top: 3.6rem;
+  }
+  .scopebar {
+    flex-wrap: wrap;
+  }
+}
+
+/* ---------- The docket margin (>=1100px) ----------
+   First min-width query in the file (the app is desktop-first; the 860px block
+   above handles narrow screens): on wide viewports the assistant avatar column
+   grows into a period-correct marginal rail -- time filed and the confidence
+   dot -- set right-aligned against the message column. Promotes the
+   provenance already on the wire into the page's identity; below 1100px the
+   rail collapses back to the bare avatar (.marginalia stays display:none). */
+@media (min-width: 1100px) {
+  .chat-row__margin {
+    width: 4.6rem;
+    align-items: flex-end;
+  }
+  .marginalia {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.28rem;
+    font-family: var(--font-mono), monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.02em;
+    color: var(--ink-faint);
+    text-align: right;
+  }
+  .marginalia__dot {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 999px;
+  }
+  /* The dot restates the existing confidence bands -- settled green for High,
+     deep gold for Moderate. Gold discipline holds: gold-deep already means
+     "grounded but hedged" on the confidence band itself. */
+  .marginalia__dot--high {
+    background: var(--green-settled);
+  }
+  .marginalia__dot--moderate {
+    background: var(--gold-deep);
+  }
+}
+
+/* ---------- Evidence drawer (S1): verify a citation in-app instead of bouncing
+   out to a remote FDA PDF. Portaled to <body>, fixed, above the sidebar (z 50). */
+.evidence__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(22, 33, 58, 0.32); /* navy ink wash */
+}
+.evidence__panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 201;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  width: min(28rem, 92vw);
+  height: 100vh;
+  padding: 1.5rem 1.6rem;
+  background: linear-gradient(180deg, var(--paper), var(--paper-2));
+  border-left: 1px solid var(--edge);
+  box-shadow: var(--shadow-lift);
+  overflow-y: auto;
+  animation: evidenceIn 0.18s ease;
+}
+@keyframes evidenceIn {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+.evidence__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.evidence__close {
+  appearance: none;
+  cursor: pointer;
+  border: 1px solid var(--edge);
+  background: var(--paper-3);
+  color: var(--ink-soft);
+  border-radius: 7px;
+  width: 1.9rem;
+  height: 1.9rem;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.evidence__close:hover {
+  color: var(--ink);
+  background: var(--paper-2);
+}
+.evidence__src {
+  margin: 0;
+  font-size: 0.74rem;
+  color: var(--ink-soft);
+}
+.evidence__quote {
+  /* Slightly larger than the inline Reference quote — this is the focal point. */
+  margin: 0;
+  font-size: 1.06rem;
+}
+.evidence__link {
+  align-self: flex-start;
+  font-size: 0.8rem;
+}
+
+/* ---------- Chemistry structure plate (structured-claims) -------------------
+   A USP-monograph-style card: a citation's active ingredient, drawn from
+   PubChem, in the evidence drawer (full) and as a compact strip under an
+   answer that names one product. Deliberately carries NO gold anywhere --
+   gold means "sourced guidance" on this surface, and a structure is
+   chemistry, not a citation (see components/StructurePlate.tsx). */
+.plate {
+  display: block;
+  margin: 0.9rem 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--edge);
+  border-radius: 2px; /* square, like the stamp -- not a rounded pill */
+  background: var(--paper-bright);
+}
+.plate + .plate {
+  margin-top: 0.6rem;
+}
+.plate__art {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 9rem;
+  padding: 0 0.5rem;
+}
+/* smiles-drawer emits a viewBox and no intrinsic size, so an unconstrained
+   svg scales to the full column width. Cap the HEIGHT and let width follow
+   the aspect ratio; overflow stays visible so an edge atom label ("HO" at
+   the far left of albuterol) is never clipped by the viewBox. */
+.plate__art svg {
+  height: 9rem;
+  width: auto;
+  max-width: 100%;
+  overflow: visible;
+}
+.plate__cap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-top: 0.6rem;
+}
+.plate__name {
+  font-family: var(--font-display), serif;
+  font-size: 1.02rem;
+  color: var(--ink);
+}
+.plate__meta {
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+}
+.plate__src {
+  /* NOT .link -- .link is gold, and nothing on this card may be. A hairline
+     underline in --ink-2 instead. */
+  width: fit-content;
+  font-size: 0.72rem;
+  color: var(--ink-2);
+  text-decoration: none;
+  border-bottom: 1px solid var(--edge);
+  transition: border-color 0.15s ease;
+}
+.plate__src:hover {
+  border-bottom-color: var(--ink-2);
+}
+.plate__note {
+  font-size: 0.74rem;
+  font-style: italic;
+  color: var(--ink-soft);
+}
+
+/* Compact variant: the strip under an answer -- shorter art, one caption
+   line, no note (the full drawer card is where that detail belongs). */
+/* The compact strip under an answer: art on the left, caption on one line
+   to the right -- a monograph's running header, not a second card. */
+.plate--compact {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 0.8rem;
+}
+.plate--compact .plate__art {
+  flex: none;
+  min-height: 0;
+  width: 12rem;
+  height: 6.5rem;
+  padding: 0;
+}
+.plate--compact .plate__art svg {
+  height: 6.5rem;
+}
+.plate--compact .plate__cap {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.8rem;
+  margin-top: 0;
+  min-width: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .evidence__panel,
+  .histpanel,
+  .acct {
+    animation: none;
+  }
+}
+
+/* ---------- Assemble (02): the compilation order ----------
+   The intake reads as a requisition, not a settings form: the active
+   ingredient is the headline, set in the same inquiry serif Ask uses; the two
+   qualifiers sit subordinate beneath it; the seal action closes bottom-right. */
+.order__lead {
+  font-size: clamp(1.45rem, 3vw, 1.9rem);
+}
+.order__opt {
+  margin-left: 0.5rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.56rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.order__quals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 1rem 1.5rem;
+  margin-top: 1.35rem;
+}
+.order__foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.8rem 1.2rem;
+  margin-top: 1.5rem;
+}
+.order__creed {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--ink-faint);
+}
+.order__foot .btn {
+  margin-left: auto;
+}
+
+/* ---------- Assemble: the contents plan ----------
+   Before anything compiles, the page promises exactly what a dossier holds —
+   the backend's real lettered sections. Dashed letter tabs are the "not yet
+   filled" state of the solid tabs the compiled dossier wears (the same
+   empty-on-purpose vocabulary as .na / verified-absent). */
+.plan {
+  margin-top: 2.7rem;
+}
+.plan__head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.8rem;
+}
+.plan__count {
+  flex: none;
+  font-size: 0.66rem;
+  color: var(--ink-faint);
+}
+.plan__list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+}
+.plan__row {
+  display: grid;
+  grid-template-columns: 2.1rem 1fr auto;
+  column-gap: 1rem;
+  align-items: start;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--edge);
+}
+.plan__letter {
+  display: grid;
+  place-items: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  margin-top: 0.1rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--gold-ink);
+  border: 1px dashed var(--gold-deep);
+  border-radius: 2px;
+}
+.plan__title {
+  font-weight: 600;
+  font-size: 0.94rem;
+  color: var(--ink);
+}
+.plan__desc {
+  margin: 0.15rem 0 0;
+  max-width: 36rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.plan__src {
+  margin-top: 0.28rem;
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+/* One honest line while the API call runs — no invented per-section progress. */
+.plan__compiling {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-top: 1.1rem;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.74rem;
+  color: var(--ink-2);
+}
+.plan__dot {
+  flex: none;
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 999px;
+  background: var(--gold-deep);
+  animation: ticker-pulse 1.6s ease-in-out infinite;
+}
+
+/* ---------- Assemble: the bound dossier ----------
+   The compiled result is a document, not a markdown dump: a masthead with the
+   scaffold caveat, letter-chip jumps, then each lettered section behind its
+   own solid tab — the filled counterpart of the plan's dashed letters. */
+.dossier {
+  padding: 0;
+}
+.dossier__mast {
+  padding: 1.5rem 1.75rem 1.3rem;
+}
+.dossier__title {
+  margin: 0.4rem 0 0;
+  font-size: clamp(1.45rem, 3vw, 1.95rem);
+}
+/* The epistemic caveat, in the app's established "absent on purpose" dashed
+   register — a caveat, not a refusal, so never oxblood. */
+.dossier__scaffold {
+  display: inline-block;
+  margin-top: 0.85rem;
+  padding: 0.24rem 0.55rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  border: 1px dashed var(--ink-soft);
+  border-radius: 2px;
+}
+.dossier__toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 1rem;
+}
+.dossier__jump {
+  display: grid;
+  place-items: center;
+  min-width: 24px;
+  min-height: 24px;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--gold-ink);
+  background: var(--gold-wash);
+  border: 1px solid var(--gold-deep);
+  border-radius: 2px;
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+.dossier__jump:hover {
+  background: #f7e6bf;
+}
+.dossier__sec {
+  display: grid;
+  grid-template-columns: 2.9rem 1fr;
+  column-gap: 1rem;
+  padding: 1.2rem 1.75rem 1.2rem 1.1rem;
+  border-top: 1px solid var(--edge);
+  /* Clear the sticky scopebar when a letter chip jumps here. */
+  scroll-margin-top: 3.4rem;
+}
+/* The section you jumped to takes the gold spine — found, not just landed on. */
+.dossier__sec:target {
+  box-shadow: inset 3px 0 0 var(--gold);
+}
+.dossier__tab {
+  justify-self: end;
+  display: grid;
+  place-items: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  margin-top: 0.05rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--gold-ink);
+  background: var(--gold-wash);
+  border: 1px solid var(--gold-deep);
+  border-radius: 2px;
+}
+.dossier__body {
+  min-width: 0;
+}
+.dossier__sechead {
+  margin: 0.15rem 0 0.4rem;
+  font-family: var(--font-display), Georgia, serif;
+  font-weight: 600;
+  font-size: 1.14rem;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  color: var(--ink);
+}
+.dossier__sec .prose {
+  font-size: 0.97rem;
+}
+/* Content-borne h3s ("From <url>", "Sources") stay subordinate to the tabbed
+   section head beside them. */
+.dossier__sec .prose h3 {
+  font-size: 1rem;
+}
+.dossier__raw {
+  font-size: 0.7rem;
+  background: var(--paper-3);
+  border: 1px solid var(--edge);
+  border-radius: 2px;
+  padding: 0.8rem;
+  overflow: auto;
+  color: var(--ink-2);
+}
+
+/* ---------- Watch (03): the bulletin ----------
+   One ruled sheet, not a stack of identical sealed cards. Each entry keeps a
+   docket margin on the left — kind stamp, detected date, match score — and
+   only a NEW entry carries the gold spine: on this surface gold marks arrival. */
+.bulletin {
+  margin-top: 1rem;
+}
+.issue-line {
+  margin: 0.55rem 0 0;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.74rem;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+.issue-line__warn {
+  color: var(--oxblood);
+}
+.count-line {
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+}
+.entry {
+  position: relative;
+  display: grid;
+  grid-template-columns: 6rem 1fr;
+  column-gap: 1.2rem;
+  padding: 1.1rem 1.4rem 1.1rem 1.15rem;
+}
+.entry + .entry {
+  border-top: 1px solid var(--edge);
+}
+.entry--new::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: linear-gradient(180deg, var(--gold), var(--gold-deep));
+}
+.entry__rail {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+  padding-top: 0.28rem;
+}
+.entry__kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+/* Hollow ring = a revision to something already known; solid gold = new. */
+.entry__kind::before {
+  content: "";
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--paper-bright);
+  box-shadow: inset 0 0 0 1.5px var(--ink-soft);
+}
+.entry__kind--new {
+  color: var(--gold-ink);
+}
+.entry__kind--new::before {
+  background: var(--gold-deep);
+  box-shadow: none;
+}
+.entry__when,
+.entry__match {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.62rem;
+  color: var(--ink-faint);
+}
+.entry__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.8rem;
+}
+.entry__name {
+  font-size: 1.12rem;
+  font-weight: 600;
+}
+.entry__id {
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+.entry__scope {
+  margin-left: auto;
+}
+.entry__scope[aria-pressed="true"] {
+  border-color: var(--gold-deep);
+  background: var(--gold-wash);
+  color: var(--gold-ink);
+}
+.entry__sum {
+  margin: 0.45rem 0 0;
+  max-width: 44rem;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+.entry__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1.2rem;
+  margin-top: 0.55rem;
+}
+.entry__meta .link {
+  font-size: 0.74rem;
+}
+.bulletin-empty {
+  margin-top: 0.9rem;
+  font-size: 0.95rem;
+  color: var(--ink-soft);
+}
+
+/* Segmented kind facet: quiet mono stops; the pressed stop fills navy — gold
+   stays reserved for the NEW stamps in the feed below. */
+.facet {
+  display: inline-flex;
+  background: var(--paper-bright);
+  border: 1px solid var(--edge);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.facet__btn {
+  appearance: none;
+  cursor: pointer;
+  min-height: 24px;
+  padding: 0.32rem 0.85rem;
+  border: 0;
+  border-left: 1px solid var(--edge);
+  background: transparent;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.64rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.facet__btn:first-child {
+  border-left: 0;
+}
+.facet__btn:hover:not([aria-pressed="true"]) {
+  background: var(--paper-2);
+  color: var(--ink);
+}
+.facet__btn[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* Watchlist ledger refinements: the URL column collapses to a link elsewhere;
+   here the type just tightens. */
+.ledger td {
+  font-size: 0.86rem;
+}
+.ledger td.code {
+  font-size: 0.78rem;
+}
+
+@media (max-width: 700px) {
+  .plan__row {
+    grid-template-columns: 2.1rem 1fr;
+  }
+  .plan__src {
+    grid-column: 2;
+    margin-top: 0.3rem;
+  }
+  .dossier__sec {
+    grid-template-columns: 1fr;
+    padding: 1.1rem 1.25rem;
+  }
+  .dossier__tab {
+    justify-self: start;
+    margin-bottom: 0.5rem;
+  }
+  .entry {
+    grid-template-columns: 1fr;
+    padding: 1rem 1.15rem;
+  }
+  .entry__rail {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.9rem;
+    padding-top: 0;
+    margin-bottom: 0.4rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan__dot {
+    animation: none;
+  }
+}
+
+/* ---------- Sign-in: the page as the document ----------
+   The app's only ungated surface. Everywhere else a document sits ON the page;
+   here the page IS the document -- masthead, rules, colophon -- with the sign-in
+   set into it as a slip rather than a card floating in the middle of the
+   parchment. That lets the wax seal carry the identity at full size, which is
+   the one place this surface spends any boldness. Mobile-first: a single
+   column, seal above the slip; the two-column setting starts at 62rem. */
+.signin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 2rem 1.5rem 2.5rem;
+}
+.signin__sheet {
+  width: 100%;
+  /* Sized so the span between the seal and the slip reads as air rather than a
+     hole: at 64rem the two ends drifted far enough apart to look unrelated. */
+  max-width: 58rem;
+}
+
+/* Masthead: nameplate left, standing line right, over the gold rule. */
+.signin__masthead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem 1.2rem;
+  padding-bottom: 0.7rem;
+}
+.signin__nameplate {
+  display: flex;
+  align-items: baseline;
+  gap: 0.8rem;
+}
+.signin__standing {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.signin__rule {
+  height: 2px;
+  margin: 0;
+  border: 0;
+  background: linear-gradient(90deg, var(--gold) 0%, var(--gold-deep) 38%, var(--edge) 100%);
+}
+
+/* Body: seal and slip. */
+.signin__body {
+  display: grid;
+  justify-items: center;
+  gap: 2.4rem;
+  padding: 2.6rem 0 2.8rem;
+}
+.signin__emblem {
+  width: 8rem;
+  height: 8rem;
+  /* Tight and close: the seal rests on the sheet. A long soft shadow read as
+     a badge hovering above the page. */
+  filter: drop-shadow(0 3px 6px rgba(138, 91, 0, 0.3));
+}
+.signin__emblem-rim {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 2.1px;
+}
+.signin__emblem-mark {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 38px;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+.signin__slip {
+  width: 100%;
+  max-width: 24rem;
+}
+.signin__heading {
+  margin: 0 0 1.3rem;
+  font-size: 2rem;
+}
+.signin__notice {
+  margin: 0 0 1.15rem;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: var(--ink-2);
+  background: var(--gold-wash);
+  border-left: 2px solid var(--gold-deep);
+  border-radius: 0 2px 2px 0;
+}
+.signin__group + .signin__group {
+  margin-top: 1.05rem;
+}
+.signin__label {
+  display: block;
+  margin-bottom: 0.4rem;
+  color: var(--ink-faint);
+}
+.signin__note {
+  margin: 0.4rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--oxblood);
+}
+/* Always rendered with a reserved line so a failed attempt never shoves the
+   button out from under the pointer between the two clicks a retry takes. */
+.signin__alert {
+  display: flex;
+  align-items: center;
+  min-height: 1.15rem;
+  margin: 0.95rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.3;
+  color: var(--oxblood);
+}
+.signin__submit {
+  width: 100%;
+  margin-top: 0.75rem;
+}
+
+/* Colophon: the standing matter every visitor needs, under a hairline. */
+.signin__colophon {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.45rem 2rem;
+  padding-top: 0.8rem;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.signin__colophon p {
+  max-width: 26rem;
+  margin: 0;
+}
+
+@media (min-width: 62rem) {
+  .signin__body {
+    /* Seal flush to the left end of the rule, slip flush to the right end, so
+       the masthead rule spans and ties the pair rather than floating over a
+       centred pile. */
+    grid-template-columns: auto minmax(0, 24rem);
+    align-items: center;
+    justify-content: space-between;
+    justify-items: start;
+    gap: 4rem;
+    padding: 3.6rem 0 3.9rem;
+  }
+  .signin__emblem {
+    width: 12rem;
+    height: 12rem;
+  }
+  .signin__heading {
+    font-size: 2.4rem;
+  }
+}

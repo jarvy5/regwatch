@@ -1,0 +1,221 @@
+name: openai-eval
+
+on:
+  workflow_call:
+    inputs:
+      run:
+        description: >-
+          Run the eval at all. ci.yml passes false for PRs whose diff cannot
+          reach the eval path; the job then reports `skipped`, which branch
+          protection accepts, instead of never reporting.
+        type: boolean
+        default: true
+        required: false
+      prose:
+        description: Enable the v6 prose synthesis arm.
+        type: boolean
+        default: false
+        required: false
+      selective:
+        description: Enable v7 selective citation; requires prose.
+        type: boolean
+        default: false
+        required: false
+      assert_prod_mode:
+        description: Refuse to score settings that differ from prod_mode.json.
+        type: boolean
+        default: false
+        required: false
+  workflow_dispatch:
+    inputs:
+      prose:
+        description: Enable the v6 prose synthesis arm.
+        type: boolean
+        default: true
+        required: false
+      selective:
+        description: Enable v7 selective citation; requires prose.
+        type: boolean
+        default: false
+        required: false
+      assert_prod_mode:
+        description: Refuse to score settings that differ from prod_mode.json.
+        type: boolean
+        default: false
+        required: false
+
+permissions:
+  contents: read
+
+# Per event AND ref (2026-08-25), never one shared group: GitHub cancels the
+# previously PENDING job in a group when another queues, which turned PR
+# evals red whenever a dispatch run held the group. Dispatch runs still
+# serialize among themselves (same event, same ref, no cancel); PR and push
+# evals get their own group, and ci.yml's ci-${ref} group handles superseded
+# pushes on the same ref.
+concurrency:
+  group: openai-eval-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  eval:
+    # workflow_dispatch has no `run` input, and GitHub's loose comparison
+    # makes an absent input equal to false, so dispatch is allowed through
+    # explicitly rather than by comparing against false.
+    if: ${{ inputs.run || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_BASE_URL: https://api.openai.com/v1
+      OPENAI_LLM_MODEL: gpt-5.6-terra
+      OPENAI_REASONING_EFFORT: medium
+      OPENAI_EMBEDDING_MODEL: text-embedding-3-large
+      OPENAI_EMBEDDING_DIMENSION: "1024"
+      INGEST_EMBEDDING_PROVIDER: openai
+      LLM_PROVIDER: openai
+      PROFILE_HNSW_INDEX_REQUIRED: "false"
+      REGWATCH_PROSE_SYNTHESIS: ${{ inputs.prose && '1' || '' }}
+      REGWATCH_SELECTIVE_CITATION: ${{ inputs.selective && '1' || '' }}
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: preflight OpenAI config
+        run: |
+          set -euo pipefail
+          if [[ -z "${OPENAI_API_KEY//[[:space:]]/}" ]]; then
+            echo "::error::OPENAI_API_KEY is unset; live eval did not run."
+            exit 1
+          fi
+
+      - name: guard selective requires prose
+        if: ${{ inputs.selective && !inputs.prose }}
+        run: |
+          echo "::error::selective requires prose"
+          exit 1
+
+      - name: install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
+        with:
+          version: latest
+          enable-cache: true
+
+      - name: install python
+        run: uv python install 3.12
+
+      - name: sync deps
+        run: uv sync --extra dev --extra llm
+
+      # Seeded-corpus cache (2026-08-25). `regwatch seed` crawls the live FDA
+      # catalog (A-Z listing pages + five PSG PDFs) and embeds every chunk
+      # through OpenAI on EVERY run: ~133 s, tokens, and a spurious gate
+      # failure whenever one FDA page 503s. The seeded database is a function
+      # of the ingest/chunk/embed code, the schema, the lockfile, and the
+      # embedding model -- all in the key -- plus the FDA catalog itself,
+      # which the YYYY-MM component re-reads at least monthly. No restore-keys
+      # on purpose: a near-miss is a different code version, and scoring
+      # against it would be measuring the wrong thing. Saved only from
+      # push-to-main runs (PR-scope cache writes are what blew the 10 GB cap);
+      # PRs read main's copy and miss exactly when they change something in
+      # the key, which is when a live re-seed is the right answer.
+      - name: seed cache key
+        id: seedkey
+        run: >-
+          echo "key=eval-seed-${{ hashFiles('src/regwatch/ingest/**', 'src/regwatch/process/**', 'src/regwatch/store/**', 'migrations/**', 'uv.lock') }}-${OPENAI_EMBEDDING_MODEL}-${OPENAI_EMBEDDING_DIMENSION}-$(date -u +%Y-%m)"
+          >> "$GITHUB_OUTPUT"
+
+      - name: restore seeded corpus
+        id: seedcache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: eval-seed
+          key: ${{ steps.seedkey.outputs.key }}
+
+      # Restore BEFORE registration: the dump carries the schema, the
+      # alembic stamp, the profile row, and the embeddings, into an otherwise
+      # empty service database. psql ships on the runner and reads dumps from
+      # a newer pg_dump fine.
+      - name: load seeded corpus (cache hit)
+        if: steps.seedcache.outputs.cache-hit == 'true'
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f eval-seed/corpus.sql
+
+      # Content-addressed and idempotent (the id is a hash of the spec), so on
+      # a cache hit this resolves to the profile the restored embeddings
+      # belong to; on a miss it mints it before the seed.
+      - name: register OpenAI embedding profile
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: |
+          set -euo pipefail
+          profile_id="$(uv run regwatch embedding-profile-register \
+            --provider openai \
+            --serving-runtime-version openai-api-v1 \
+            --id-only)"
+          echo "EVAL_PROFILE_ID=${profile_id}" >> "${GITHUB_ENV}"
+
+      - name: seed vector store
+        if: steps.seedcache.outputs.cache-hit != 'true'
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: |
+          set -euo pipefail
+          export RETRIEVAL_EMBEDDING_PROFILE="${EVAL_PROFILE_ID}"
+          uv run regwatch seed
+
+      # pg_dump must come from the same pg17 lineage as the service (the
+      # runner's own client refuses newer servers), so run it from the
+      # already-pinned service image -- the exact pattern
+      # scripts/gen-store-schema.sh uses. Dumped right after the seed, before
+      # the eval writes its own rows.
+      - name: dump seeded corpus (cache miss)
+        if: steps.seedcache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p eval-seed
+          docker run --rm --network host -e PGPASSWORD=postgres \
+            pgvector/pgvector:pg17 \
+            pg_dump 'postgresql://postgres@localhost:5432/postgres' \
+            --no-owner --no-privileges > eval-seed/corpus.sql
+          ls -l eval-seed
+
+      - name: save seeded corpus (main only)
+        if: github.event_name == 'push' && steps.seedcache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: eval-seed
+          key: ${{ steps.seedkey.outputs.key }}
+
+      - name: eval OpenAI arm
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: |
+          set -euo pipefail
+          export RETRIEVAL_EMBEDDING_PROFILE="${EVAL_PROFILE_ID}"
+          uv run python -m regwatch.eval.run_eval \
+            --profile "${EVAL_PROFILE_ID}" \
+            --check-thresholds \
+            --out eval-scorecard.json \
+            ${{ inputs.assert_prod_mode && '--assert-prod-mode' || '' }}
+
+      - name: upload eval scorecard
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ${{ inputs.selective && 'dark-eval-scorecard-v7' || (inputs.prose && 'dark-eval-scorecard' || 'eval-scorecard') }}
+          path: eval-scorecard.json
+          if-no-files-found: ignore

@@ -1,0 +1,148 @@
+package api
+
+import (
+	"net/http"
+	"slices"
+	"strings"
+)
+
+// Routes returns the native route table the proxy mounts ahead of its relay
+// catch-all. Go 1.22 method patterns route the exact method+path pairs below;
+// OTHER PATHS fall through to the relay catch-all, and other METHODS on these
+// paths get the explicit 405s registered at the bottom -- since the B2/C2
+// deletions there is no Python handler behind these paths, so a method
+// mismatch left to the relay would surface as an upstream 404.
+func (s *Server) Routes() map[string]http.Handler {
+	routes := map[string]http.Handler{
+		"POST /auth/login":      http.HandlerFunc(s.handleLogin),
+		"POST /auth/logout":     http.HandlerFunc(s.handleLogout),
+		"GET /auth/me":          http.HandlerFunc(s.handleMe),
+		"GET /sessions":         http.HandlerFunc(s.handleListSessions),
+		"GET /sessions/{id}":    http.HandlerFunc(s.handleGetSession),
+		"DELETE /sessions/{id}": http.HandlerFunc(s.handleDeleteSession),
+
+		"POST /feedback":                http.HandlerFunc(s.handleFeedback),
+		"GET /settings":                 http.HandlerFunc(s.handleGetSettings),
+		"GET /products":                 http.HandlerFunc(s.handleListProducts),
+		"POST /products":                http.HandlerFunc(s.handleCreateProduct),
+		"DELETE /products/{product_id}": http.HandlerFunc(s.handleDeleteProduct),
+	}
+	if s.cfg.GoNativeQuery {
+		// Step-5 cutover: serve POST /query natively. OFF (default) leaves
+		// /query (and /query/stream) relayed to Python exactly as today.
+		routes["POST /query"] = http.HandlerFunc(s.handleCompleteQuery)
+	}
+	out := make(map[string]http.Handler, len(routes)*2)
+	seenPaths := map[string]bool{}
+	for pattern, h := range routes {
+		out[pattern] = s.corsSimple(h)
+		// One preflight handler per PATH, mirroring Starlette's CORSMiddleware,
+		// which answers OPTIONS itself on every route (the browser never
+		// preflights the prod same-origin /api rewrite path, but local direct-
+		// API dev and the Python parity contract both expect this to exist).
+		_, path, _ := strings.Cut(pattern, " ")
+		if !seenPaths[path] {
+			seenPaths[path] = true
+			out["OPTIONS "+path] = http.HandlerFunc(s.handlePreflight)
+		}
+	}
+	// Method mismatches: a method-less pattern matches every method the
+	// specific patterns above do not claim. The Allow values reproduce the
+	// FastAPI behavior these paths had (Starlette quirk preserved: Allow
+	// lists the FIRST partially-matching route's methods only -- GET for
+	// /sessions/{id}, never "GET, DELETE"; GET for /products because the GET
+	// route was declared before POST in main.py). The C2 rows were probed
+	// empirically against the live FastAPI app before its handlers were
+	// deleted (2026-07-21): PUT/GET /feedback -> POST; POST/DELETE /settings
+	// -> GET; PUT/PATCH /products -> GET; GET/POST/PATCH /products/{id} ->
+	// DELETE.
+	allow405 := map[string]string{
+		"/auth/login":    "POST",
+		"/auth/logout":   "POST",
+		"/auth/me":       "GET",
+		"/sessions":      "GET",
+		"/sessions/{id}": "GET",
+
+		"/feedback":              "POST",
+		"/settings":              "GET",
+		"/products":              "GET",
+		"/products/{product_id}": "DELETE",
+	}
+	if s.cfg.GoNativeQuery {
+		// Only when Go owns POST /query: other methods on it 405. With the flag
+		// off, /query has no native handler, so every method must relay.
+		allow405["/query"] = "POST"
+	}
+	for path, allow := range allow405 {
+		out[path] = s.corsSimple(methodNotAllowed(allow))
+	}
+
+	// The internal RAG compute endpoint lives on the Python app and Go reaches
+	// it DIRECTLY (ragclient), never through this public proxy. Block the whole
+	// /internal/ subtree with a 404, UNCONDITIONALLY (independent of
+	// GO_NATIVE_QUERY) so it is never publicly relayable the moment Python ships
+	// the endpoint. The subtree pattern outranks the "/" relay catch-all.
+	out["/internal/"] = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writeDetail(w, http.StatusNotFound, "Not Found")
+	})
+
+	return out
+}
+
+// methodNotAllowed reproduces FastAPI's 405 body ({"detail":"Method Not
+// Allowed"}) with a hand-set Allow header.
+func methodNotAllowed(allow string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Allow", allow)
+		writeDetail(w, http.StatusMethodNotAllowed, "Method Not Allowed")
+	})
+}
+
+// allowedOrigin reports whether the request Origin is in the configured
+// allowlist (exact match, like Starlette's non-wildcard allow_origins).
+func (s *Server) allowedOrigin(origin string) bool {
+	return origin != "" && slices.Contains(s.cfg.CORSOrigins, origin)
+}
+
+// corsSimple mirrors CORSMiddleware's simple-response behavior for the routes
+// Go owns: when the Origin is allowlisted, echo it with credentials allowed
+// (that combination is what lets the browser send the HttpOnly session
+// cookie cross-origin; the EXPLICIT allowlist is what keeps it safe).
+func (s *Server) corsSimple(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if origin := r.Header.Get("Origin"); s.allowedOrigin(origin) {
+			h := w.Header()
+			h.Set("Access-Control-Allow-Origin", origin)
+			h.Set("Access-Control-Allow-Credentials", "true")
+			h.Add("Vary", "Origin")
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// handlePreflight mirrors Starlette's preflight response for
+// allow_methods=["GET","POST","DELETE"], allow_headers=["*"],
+// allow_credentials=True: with credentials, "*" cannot be sent literally, so
+// the requested headers are echoed back. Disallowed origins get the
+// middleware's plain 400.
+func (s *Server) handlePreflight(w http.ResponseWriter, r *http.Request) {
+	origin := r.Header.Get("Origin")
+	reqMethod := r.Header.Get("Access-Control-Request-Method")
+	allowedMethod := reqMethod == "GET" || reqMethod == "POST" || reqMethod == "DELETE"
+	if !s.allowedOrigin(origin) || !allowedMethod {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte("Disallowed CORS origin, method, or headers"))
+		return
+	}
+	h := w.Header()
+	h.Set("Access-Control-Allow-Origin", origin)
+	h.Set("Access-Control-Allow-Credentials", "true")
+	h.Set("Access-Control-Allow-Methods", "GET, POST, DELETE")
+	if reqHeaders := r.Header.Get("Access-Control-Request-Headers"); reqHeaders != "" {
+		h.Set("Access-Control-Allow-Headers", reqHeaders)
+	}
+	h.Set("Access-Control-Max-Age", "600")
+	h.Add("Vary", "Origin")
+	w.WriteHeader(http.StatusOK)
+}

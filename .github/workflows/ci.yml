@@ -1,0 +1,682 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# Cancel a superseded in-flight run when a newer commit lands on the same ref,
+# so iterative pushes don't burn Actions minutes finishing runs whose result is
+# already moot (the dominant waste). Grouped per-ref, so each branch/PR cancels
+# only its own prior run; the deploy workflow still fires only on the latest
+# successful main run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The blocking live eval, extracted from lint-type-test into its own job
+  # (slm-layer F15). It USED to serialize every live eval -- this one and the
+  # workflow_dispatch dark arm -- through one non-canceling `openai-eval`
+  # concurrency group, to avoid colliding on the previous provider's
+  # workspace QPS. Dropped 2026-08-25: GitHub keeps at most ONE pending job
+  # per group and cancels the previously pending one when another queues, so
+  # any burst of PRs while a dispatch ran turned a required check red for
+  # nothing (#278 at 15:50Z, #280 at 16:07Z, both `cancelled` with zero
+  # steps). Under the current provider's org-level rate limits a few
+  # concurrent evals are nothing, and the workflow-level ci-${ref} group
+  # above already cancels a superseded run on the same ref. Dispatch runs
+  # keep their own per-event group in openai-eval.yml. Branch protection
+  # requires "openai-eval / eval"; a path-gated skip still satisfies it.
+  # Path gate for the live eval (2026-08-25). The eval exercises the Python
+  # retrieval/synthesis path only, so a PR that touches nothing it imports
+  # (frontend, Go, docs, CI plumbing -- ~40% of recent PRs) cannot change its
+  # result, yet every such PR paid ~5 min, live OpenAI tokens, and a slot in
+  # the serialized `openai-eval` concurrency group (run 632 queued 18 min
+  # behind it). Plain git rather than a third-party paths action: this repo
+  # pins every action by SHA and a diff against the PR base is ten lines.
+  # push-to-main and workflow_dispatch always evaluate. The decision is passed
+  # INTO the reusable workflow (input `run`) rather than skipping this caller
+  # job, so the `openai-eval / eval` check run still exists -- as `skipped`,
+  # which branch protection treats as satisfied -- instead of never reporting.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      eval: ${{ steps.filter.outputs.eval }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: decide whether the eval can be affected
+        id: filter
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" != "pull_request" ]; then
+            echo "eval=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # HEAD is the PR merge commit whose first parent is BASE_SHA, so this
+          # diff is exactly the PR's own change set. The public repo needs no
+          # token to fetch one commit by SHA.
+          git fetch --quiet --depth=1 origin "$BASE_SHA"
+          changed="$(git diff --name-only "$BASE_SHA" HEAD)"
+          printf '%s\n' "$changed"
+          if printf '%s\n' "$changed" | grep -qE '^(src/|config/|migrations/|pyproject\.toml$|uv\.lock$|\.github/workflows/(ci|openai-eval)\.yml$)'; then
+            echo "eval=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "eval=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # The gate scores what PRODUCTION serves (2026-08-25): prose synthesis +
+  # selective citation, asserted against config/prod_mode.json so a drift
+  # between the two fails the run instead of silently scoring a retired arm.
+  # Until this flip the blocking eval ran the v5 arm while prod had served v7
+  # since 2026-08-10. Cleared by dispatch run 32868188531 (dark-eval
+  # scorecard v7: n=62, recall@k 0.88, faithfulness 0.86, refusal accuracy
+  # 0.89, 0 forbidden violations, thresholds green).
+  openai-eval:
+    needs: changes
+    uses: ./.github/workflows/openai-eval.yml
+    with:
+      run: ${{ needs.changes.outputs.eval == 'true' }}
+      prose: true
+      selective: true
+      assert_prod_mode: true
+    secrets: inherit
+
+  lint-type-test:
+    runs-on: ubuntu-latest
+    env:
+      # B8: exercise the production datastore (Postgres + pgvector) in CI, the
+      # mode prod actually runs in. Without this, test_pgvector_store.py and
+      # test_postgres_bootstrap.py skip and the prod path ships untested.
+      # DATABASE_URL is absent on purpose: pytest must keep using
+      # TEST_DATABASE_URL. The eval-arm credentials moved to the
+      # openai-eval job with the eval steps.
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    strategy:
+      fail-fast: false
+      matrix:
+        # Prod runs only on 3.12 (Dockerfile python:3.12-slim), so gate on 3.12
+        # alone -- the 3.11 leg doubled this (the heaviest) job's minutes. Re-add
+        # "3.11" here if this ever needs to stay verified as a 3.11 library.
+        python-version: ["3.12"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: install python
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: sync deps
+        run: >-
+          uv sync --extra dev --extra llm --extra local-embeddings
+          --extra corpus-worker
+
+      # scripts/ is included so the flake8-bandit ("S") rules added to
+      # pyproject actually cover it -- the export/codegen helpers there run in
+      # CI and locally, and an unscanned directory is exactly where a
+      # subprocess or credential smell would hide. It passes clean today.
+      - name: ruff
+        run: uv run ruff check src tests migrations tests_contract scripts
+
+      - name: black --check
+        run: uv run black --check src tests migrations tests_contract
+
+      # Persist mypy's incremental cache between runs (cold mypy is ~60s, warm
+      # ~15s). Keyed per Python version and per dependency/config hash so a real
+      # type-surface change starts fresh. The trailing UTC day stamp (not
+      # run_id, 2026-08-25): actions/cache only SAVES when the primary key
+      # missed, so this writes at most one copy per day instead of one per run
+      # (16 run_id copies were sitting in the 10 GB cache); restore-keys still
+      # restore the newest compatible copy, and mypy re-checks changed files
+      # regardless, so a stale cache cannot produce a wrong result.
+      - name: utc day stamp (cache key)
+        id: day
+        run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+
+      - name: cache mypy
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: .mypy_cache
+          key: mypy-${{ matrix.python-version }}-${{ hashFiles('uv.lock', 'pyproject.toml') }}-${{ steps.day.outputs.day }}
+          restore-keys: |
+            mypy-${{ matrix.python-version }}-${{ hashFiles('uv.lock', 'pyproject.toml') }}-
+            mypy-${{ matrix.python-version }}-
+
+      - name: mypy
+        run: uv run mypy src tests tests_contract
+
+      - name: lint-imports
+        run: uv run lint-imports
+
+      - name: pytest
+        # --cov-fail-under is a regression floor: measured coverage was ~82%, so
+        # 80 leaves headroom while still failing CI if coverage silently erodes.
+        # --durations: the suite is the critical path (348 s for 2282 tests on
+        # 2026-08-25); the slowest-25 table in every run is what makes a creeping
+        # slow test visible before it costs a minute.
+        # -n 4: one xdist worker per runner vCPU, each on its own database
+        # (tests/conftest.py derives <db>_gwN from TEST_DATABASE_URL); the
+        # profile is diffuse (~150 ms/test, slowest 25 sum to ~50 s), so
+        # parallelism is the lever, not individual tests. --dist loadfile keeps
+        # a module's tests on one worker. pytest-cov merges the workers' data,
+        # so the coverage floor is unchanged.
+        run: uv run pytest -q -n 4 --dist loadfile --cov=src/regwatch --cov-fail-under=80 --durations=25
+
+  python-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
+        with:
+          version: "latest"
+          enable-cache: true
+
+      # Audit the union of both shipped Python closures: the public API (`llm`)
+      # and the private corpus worker (`llm` + `corpus-worker`). Torch and
+      # transformers remain absent because neither production image installs
+      # `local-embeddings`; both use the OpenAI profile. --frozen also
+      # asserts uv.lock matches pyproject.
+      - name: export shipped runtime dependency set
+        run: >-
+          uv export --frozen --no-emit-project --no-dev
+          --extra llm --extra corpus-worker
+          --format requirements-txt --output-file requirements-audit.txt
+
+      - name: pip-audit (python deps)
+        run: uvx pip-audit -r requirements-audit.txt
+
+  # Build + scan the three images as PARALLEL matrix legs. The builds and the
+  # Trivy scans are independent of each other, and running them serially
+  # (2026-08-25: 64+86+55 s of builds plus three ~30 s scans) kept this job on
+  # the critical path at 4.7-7.9 min. `docker-build` below fans the legs back
+  # into the ONE context branch protection requires, so the required-check
+  # name is unchanged.
+  docker-image:
+    # Without an explicit name GitHub renders every include value, e.g.
+    # "docker-image (api, ., Dockerfile, regwatch:ci)".
+    name: docker-image (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      # Every leg reports: a web-image CVE must not hide an API-image one.
+      fail-fast: false
+      matrix:
+        include:
+          - name: api
+            context: .
+            file: Dockerfile
+            tag: regwatch:ci
+          - name: corpus-worker
+            context: .
+            file: Dockerfile.corpus-worker
+            tag: regwatch-corpus-worker:ci
+          - name: web
+            context: regwatch/frontend
+            file: regwatch/frontend/Dockerfile
+            tag: regwatch-web:ci
+    env:
+      IMAGE: ${{ matrix.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Buildx (docker-container driver) is required for the GitHub Actions layer
+      # cache backend (cache-from/to type=gha) used by the image build below.
+      - name: set up buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4.2.0
+
+      # load:true exports the built image into the local docker daemon so the
+      # Trivy step below scans it exactly as before. One cache scope per image
+      # so the three never evict each other.
+      #
+      # cache-to ONLY on push-to-main (2026-08-25): a PR run's cache writes land
+      # in the PR's own scope, which main can never read, so every PR parked
+      # 0.3-1.2 GB of blobs that lingered up to 7 days and pushed the repo over
+      # the 10 GB cap (10.95 GB / 364 entries), evicting main's useful layers.
+      # PRs now READ main's layers and write nothing; only the canonical main
+      # run refreshes the cache. mode=min exports just the final image's layers
+      # -- the dependency-install layer that matters -- and not the API image's
+      # Go build stage (rebuilds in ~6 s, not worth ~200 MB of blobs).
+      # ignore-error: a GHA cache export failure (e.g. "failed to reserve cache"
+      # under quota pressure) must NOT fail the build -- the cache is an
+      # optimization, not a gate.
+      #
+      # no-cache-filters (2026-08-26): mode=min caches the FINAL stage, which
+      # for the two Python images is the stage running apt-get upgrade. Every
+      # build restored that layer, so Debian security updates froze at the last
+      # Dockerfile edit and openssl CVE-2026-14456 (DSA-6465-1) turned main red
+      # with the fix already published upstream. Filtering the `runtime` stage
+      # rebuilds only that stage each run (~30-60 s, almost all apt) while the
+      # dependency stage stays cached, so the Trivy gate self-heals as Debian
+      # ships fixes. The web image is single-stage and has no stage named
+      # runtime, so the filter is a no-op there: web keeps the same latent
+      # exposure, left for a follow-up because filtering it would un-cache
+      # `npm ci`.
+      - name: docker build (${{ matrix.name }} image)
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          load: true
+          tags: ${{ matrix.tag }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          no-cache-filters: runtime
+          cache-to: ${{ github.event_name == 'push' && format('type=gha,mode=min,scope={0},ignore-error=true', matrix.name) || '' }}
+
+      - name: compose config
+        if: matrix.name == 'api'
+        run: docker compose config --quiet
+
+      # Image-bloat observability, in docker history order (newest layer
+      # first): a dependency tree that a LATER layer re-copied -- e.g. a
+      # trailing `chown -R` over the .venv -- shows up as a second ~300 MB line
+      # near the top. Total size is the number to watch across PRs.
+      - name: image size and layer history
+        run: |
+          echo "size_bytes=$(docker image inspect -f '{{.Size}}' "$IMAGE")"
+          docker history --format '{{.Size}}\t{{.CreatedBy}}' "$IMAGE" | head -40
+
+      # By scan time the image bytes exist THREE times: the builder's local
+      # store, the daemon store (load: true), and the copy Trivy writes to its
+      # container /tmp while exporting the image from the daemon. On 2026-07-20
+      # that third copy hit "no space left on device" (runs 29751451276 /
+      # 29751461848) and failed the gate. The local buildkit store is expendable
+      # here (its useful content is already in the GHA cache; nothing builds
+      # after this point), so drop it before scanning. df lines are
+      # observability for the next disk incident.
+      - name: reclaim buildkit disk before scan
+        run: |
+          df -h /
+          docker buildx prune -af > /dev/null
+          df -h /
+
+      # Persist Trivy's vuln DB (~100MB) across ephemeral runners (the scan
+      # below mounts ~/.cache/trivy). Keyed per UTC day: actions/cache only
+      # SAVES when the primary key missed, so at most one copy per day gets
+      # written (the old run_id key wrote a fresh ~80 MB copy on EVERY run --
+      # 17 copies / 1.4 GB on 2026-08-25). restore-keys fall back to the newest
+      # earlier copy, and Trivy still refreshes the DB when its own metadata
+      # says it is past TTL, so the gate is never stale. deploy.yml restores
+      # with the same `trivy-db-` prefix.
+      - name: utc day stamp (cache key)
+        id: day
+        run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+
+      - name: cache trivy DB
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.cache/trivy
+          key: trivy-db-${{ steps.day.outputs.day }}
+          restore-keys: |
+            trivy-db-
+
+      # Container image scan: FIXABLE CRITICAL/HIGH vulns (--ignore-unfixed:
+      # base-image OS packages routinely carry CVEs with no released fix, and
+      # failing on those would just pin the build to a moving target with no
+      # action to take) PLUS any embedded secrets (--scanners vuln,secret:
+      # secret findings ignore --ignore-unfixed and gate the build the same way).
+      # Trivy caches its DB across runs. The tag is PINNED (0.72.0, current
+      # 2026-07-20) for the same reason deploy.yml pins flyctl: an unpinned
+      # `latest` makes scanner-behavior drift land silently on whatever PR
+      # happens to run next. The vuln DB stays fresh regardless -- it is
+      # fetched at scan time, not baked into the image tag. Bump deliberately.
+      - name: trivy scan (${{ matrix.name }} image)
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$HOME/.cache/trivy:/root/.cache/trivy" \
+            -v "$GITHUB_WORKSPACE/.trivyignore:/root/.trivyignore" \
+            aquasec/trivy:0.72.0 image \
+            --exit-code 1 --ignore-unfixed --severity CRITICAL,HIGH \
+            --ignorefile /root/.trivyignore \
+            --scanners vuln,secret "$IMAGE"
+
+      # Trivy runs as root in the container and writes ~/.cache/trivy with
+      # root-owned 0700 dirs, which the actions/cache POST-save (tar, as the
+      # runner user) cannot read -- so without this the save silently fails and
+      # the DB never persists. Hand the tree back to the runner. NOTE the
+      # post-save itself only runs when the JOB succeeds (actions/cache v4.3.0
+      # post-if: success()), so a failed run does not refresh the cache -- the
+      # next green run does; always() just keeps this handoff unconditional.
+      - name: hand trivy cache to the runner (for actions/cache save)
+        if: always()
+        run: |
+          if [ -d "$HOME/.cache/trivy" ]; then
+            sudo chown -R "$(id -u):$(id -g)" "$HOME/.cache/trivy"
+          fi
+
+  # Fan-in for the matrix above: the single "docker-build" context that branch
+  # protection requires. needs.docker-image.result is the AGGREGATE -- success
+  # only when every leg succeeded -- so one red image fails the gate.
+  # if: always() so a failed leg still yields a (failing) fan-in status instead
+  # of leaving the required check "expected" forever.
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: docker-image
+    if: always()
+    steps:
+      - name: require every image leg green
+        env:
+          RESULT: ${{ needs.docker-image.result }}
+        run: |
+          echo "docker-image result: ${RESULT}"
+          test "${RESULT}" = "success"
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: setup node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: regwatch/frontend/package-lock.json
+
+      - name: install frontend deps
+        working-directory: regwatch/frontend
+        run: npm ci
+
+      # Supply-chain gate on what actually ships: production deps only
+      # (--omit=dev), failing on high/critical advisories. Dev-only build-tool
+      # advisories don't reach the served app and shouldn't block the build.
+      - name: npm audit (production deps)
+        working-directory: regwatch/frontend
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: frontend lint
+        working-directory: regwatch/frontend
+        run: npm run lint
+
+      - name: frontend typecheck
+        working-directory: regwatch/frontend
+        run: npx tsc --noEmit
+
+      - name: frontend build
+        working-directory: regwatch/frontend
+        run: npm run build
+
+      # Run the vitest suites so green CI actually means the frontend tests
+      # pass. The "test" script is `vitest run` (non-watch), safe for CI; deps
+      # were installed by `npm ci` above.
+      - name: frontend test
+        working-directory: regwatch/frontend
+        run: npm test
+
+  # The wire types in lib/api.ts are generated from the FastAPI schema
+  # (lib/api-types.ts), and regwatch/frontend/openapi.json is the committed
+  # contract snapshot. Regenerate both here and fail if either committed copy
+  # is stale, so the frontend contract can never silently drift from the
+  # backend in either direction (tests/test_openapi_contract.py is the
+  # matching pytest-side guard).
+  frontend-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: install python
+        run: uv python install 3.12
+
+      - name: sync deps (api importable for the schema dump)
+        run: uv sync --extra dev --extra llm
+
+      - name: setup node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: regwatch/frontend/package-lock.json
+
+      - name: install frontend deps
+        working-directory: regwatch/frontend
+        run: npm ci
+
+      - name: regenerate wire types from the FastAPI schema
+        working-directory: regwatch/frontend
+        run: npm run gen:types
+
+      # ls-files first: an untracked snapshot or types file would make the
+      # diff below pass vacuously while the committed contract silently
+      # ceased to exist.
+      - name: fail if committed openapi.json or api-types.ts is stale
+        run: |
+          git ls-files --error-unmatch regwatch/frontend/openapi.json regwatch/frontend/lib/api-types.ts
+          git diff --exit-code -- regwatch/frontend/openapi.json regwatch/frontend/lib/api-types.ts
+
+  # Strangler Step 3 lane (docs/POLYGLOT_TARGET_2026-07-10.md): the Go reverse
+  # proxy under go/ ships inert -- no deploy config runs it yet (rollout plan
+  # in docs/GO_PROXY_ROLLOUT.md) -- but its gate lives here from day one.
+  go-proxy:
+    runs-on: ubuntu-latest
+    env:
+      # The Go store's opt-in tests and sqlc vet's db-prepare rule target this
+      # disposable service DB -- same B8 rationale as lint-type-test: the Go
+      # data layer must be exercised against the datastore prod actually runs.
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: setup go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      # gofmt exits 0 even when files need formatting; -l prints offenders,
+      # so fail on any output (this lane's `black --check`).
+      - name: gofmt
+        working-directory: go
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "gofmt required for:" >&2
+            echo "$unformatted" >&2
+            exit 1
+          fi
+
+      - name: go vet
+        working-directory: go
+        run: go vet ./...
+
+      - name: setup sqlc
+        uses: sqlc-dev/setup-sqlc@bac53b7fb28c039a6c7f5736fd1e89744021bdd6  # v5.0.0
+        with:
+          sqlc-version: "1.31.1"
+
+      # Stale-generated-code gate: the committed *.sql.go must equal what sqlc
+      # generates from the committed schema + queries. Hermetic by design --
+      # sqlc.yaml disables the DB-backed analyzer, so this needs no database.
+      - name: sqlc diff
+        working-directory: go
+        run: sqlc diff
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a  # v9.3.0
+        with:
+          version: v2.12.2
+          working-directory: go
+
+      # db-prepare PREPAREs every query against a real Postgres carrying the
+      # committed snapshot: a query that references a column the schema does
+      # not have fails HERE, not at runtime. Load the snapshot first (psql
+      # ships on the runner). Ordering is load-bearing: go test drops and
+      # recreates schema public itself, so vet must run before it.
+      - name: sqlc vet (db-prepare)
+        working-directory: go
+        run: |
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -q -f internal/store/schema.sql
+          sqlc vet
+
+      - name: go test
+        working-directory: go
+        run: go test ./...
+
+  # Proves the committed Go store schema snapshot (go/internal/store/schema.sql)
+  # still equals what Alembic head actually produces: bootstrap a throwaway
+  # pgvector database the canonical way (regwatch init-db = create_all + stamp,
+  # the only supported fresh-PG path), re-run the EXACT generation pipeline,
+  # and diff against the committed file. A failure means a Python migration
+  # changed a step-4 table without regenerating the Go side -- the two halves
+  # of the polyglot split can never silently disagree about the schema.
+  store-schema-drift:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
+        with:
+          version: "latest"
+          enable-cache: true
+
+      # EMBEDDING_PROVIDER=echo: the 1536-dim test provider satisfies the
+      # vector-dimension assert with no credentials (same trick as
+      # tests/test_postgres_bootstrap.py). There is no default provider; an
+      # unset value refuses to boot.
+      - name: bootstrap schema at alembic head
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          EMBEDDING_PROVIDER: echo
+        run: uv run regwatch init-db
+
+      # pg_dump must come from the same pg17 lineage as the service (the
+      # runner's own client refuses newer servers), so run it from the
+      # already-pinned service image; --network host reaches the published
+      # port. No new version pin is introduced here.
+      - name: regenerate + diff the snapshot
+        run: |
+          PGDUMP="docker run --rm --network host -e PGPASSWORD=postgres pgvector/pgvector:pg17 pg_dump" \
+            bash scripts/gen-store-schema.sh \
+            'postgresql://postgres:postgres@localhost:5432/postgres' /tmp/schema.live.sql
+          if ! diff -u go/internal/store/schema.sql /tmp/schema.live.sql; then
+            echo "::error::go/internal/store/schema.sql is stale: a migration changed a step-4 table. Regenerate with scripts/gen-store-schema.sh against a fresh init-db database, run 'sqlc generate', and commit both." >&2
+            exit 1
+          fi
+
+  # R1 cross-service contract lane (PR A of step 5, docs/POLYGLOT_TARGET_2026-07-10.md):
+  # real Go proxy binary + real uvicorn + real Postgres, driven through the Go
+  # edge. Pytest fixtures own both subprocesses; this job only provides the
+  # toolchains, the disposable DB, and the prebuilt proxy binary.
+  cross-service-contract:
+    runs-on: ubuntu-latest
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: install python
+        run: uv python install 3.12
+
+      - name: setup go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      # Same build invocation shape as the shipped image (Dockerfile);
+      # -ldflags "-s -w" omitted so a CI core dump keeps symbols.
+      - name: build proxy binary
+        working-directory: go
+        run: go build -trimpath -o "$RUNNER_TEMP/regwatch-proxy" ./cmd/proxy
+
+      # --extra llm for prod-image parity: the app registers extra
+      # upstream-error handlers only when the LLM SDKs are importable, and the
+      # dead-provider scenarios exercise the real openai SDK.
+      - name: sync deps
+        run: uv sync --extra dev --extra llm
+
+      - name: contract tests (Go edge -> uvicorn -> Postgres)
+        env:
+          REGWATCH_PROXY_BIN: ${{ runner.temp }}/regwatch-proxy
+        run: uv run pytest tests_contract -q
