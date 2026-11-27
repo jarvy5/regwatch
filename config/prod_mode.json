@@ -1,0 +1,6 @@
+{
+  "_comment": "Checked-in answer-policy target. Asserted by `run_eval --assert-prod-mode`; verify it against the live deployment after an authorized rollout. Underscore-prefixed keys are notes, not assertions.",
+  "_verified": "repository target updated 2026-08-21; live production not verified",
+  "prose_synthesis_enabled": true,
+  "selective_citation_enabled": true
+}

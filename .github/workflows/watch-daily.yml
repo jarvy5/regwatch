@@ -1,0 +1,323 @@
+name: watch-daily
+
+# Last updated: 2026-08-12
+#
+# Scheduled production run of `regwatch watch`: the daily FDA PSG crawl ->
+# watchlist match -> ingest -> alert -> digest pipeline. There is NO Dagster
+# daemon deployed (compose.yaml's scheduler is local-only), so this GitHub
+# Actions cron is the sole driver of the daily pipeline in production.
+#
+# It connects to the same application-owned PostgreSQL/pgvector database the
+# API uses and writes durable alerts to the DB.
+#
+# It does NOT migrate the schema. The Fly deploy is the single migration authority
+# (fly.toml `[deploy] release_command = "regwatch release"` runs migrations and
+# the serving-readiness guard in a one-off machine before the rolling deploy).
+# The Postgres init path
+# (src/regwatch/store/db.py::_init_postgres) REFUSES to start when the DB stamp !=
+# the code's head, so if a migration was merged but not yet deployed this cron
+# fails loudly here rather than advancing the live schema ahead of the running API
+# machines, which would crash-loop them (the 2026-06-18 failure class).
+#
+# Required repository secrets (Settings -> Secrets and variables -> Actions):
+#   WATCH_DATABASE_URL  the prod Postgres URL WITH ?sslmode=require, e.g.
+#                       postgresql://<role>:<password>@<host>:5432/<database>
+#                       ?sslmode=require. Point it at the same database the API
+#                       serves, or the run writes alerts nobody reads.
+#   OPENAI_API_KEY       shared with openai-eval.yml; used for Responses
+#                       generation and text-embedding-3-large embeddings.
+#   WATCH_ACTIVE_EMBEDDING_PROFILE
+#                       the exact named profile prod serves (never `legacy`).
+#                       `regwatch init-db` compares the OpenAI model and
+#                       1024-dimensional geometry with the immutable profile.
+# While WATCH_DATABASE_URL is unset, the job skips cleanly (no failures).
+#
+# Optional alerting secrets (this cron is the SOLE prod driver of the pipeline,
+# so a silent failure leaves analysts on stale FDA guidance with nobody paged):
+#   SLACK_WEBHOOK_URL     OPTIONAL: Slack incoming-webhook URL. When set, a
+#                         failed OR timed-out (cancelled) run posts
+#                         repo/workflow/run-URL to Slack, AND a successful run
+#                         delivers the day's alert digest (new/revised PSGs; a
+#                         quiet day posts nothing). Unset => both Slack steps
+#                         are graceful no-ops (forks are fine).
+#   WATCH_HEALTHCHECK_URL OPTIONAL: healthchecks.io-style ping URL (see
+#                         docs/DEPLOY.md section 6.2). On success we ping it; on
+#                         failure we ping `$URL/fail`. This is the dead-man's
+#                         switch that catches a cron that NEVER STARTS (which
+#                         the in-job failure step cannot). Unset => both pings
+#                         no-op.
+
+on:
+  schedule:
+    # 07:17 UTC daily, off the top of the hour to avoid the cron stampede, and
+    # early enough that a US-East analyst sees fresh alerts at the start of day.
+    - cron: "17 7 * * *"
+  workflow_dispatch:
+
+# Never overlap runs against the shared prod DB; let an in-flight run finish
+# rather than cancelling it mid-ingest.
+concurrency:
+  group: watch-daily
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      # The Postgres-mode boot guard. Watch embeds new FDA chunks in the same
+      # named OpenAI profile the serving path reads.
+      DATABASE_URL: ${{ secrets.WATCH_DATABASE_URL }}
+      REQUIRE_DATABASE_URL: "true"
+      INGEST_EMBEDDING_PROVIDER: "openai"
+      # GitHub Actions env is a separate surface from Fly secrets: without
+      # this, init-db's boot gate could require an index exact search does not use.
+      PROFILE_HNSW_INDEX_REQUIRED: "false"
+      LLM_PROVIDER: "openai"
+      RETRIEVAL_EMBEDDING_PROFILE: ${{ secrets.WATCH_ACTIVE_EMBEDDING_PROFILE }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_BASE_URL: "https://api.openai.com/v1"
+      OPENAI_LLM_MODEL: "gpt-5.6-terra"
+      OPENAI_REASONING_EFFORT: "medium"
+      OPENAI_EMBEDDING_MODEL: "text-embedding-3-large"
+      OPENAI_EMBEDDING_DIMENSION: "1024"
+      # entrypoint.sh runs init-db on boot; here we run alembic + watch directly,
+      # so this is informational parity with the container only.
+      SENTRY_ENVIRONMENT: "production"
+      # Optional alerting (see header). Mapped to env so `if:` can test presence
+      # and the notify steps no-op cleanly when the secret is absent.
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      WATCH_HEALTHCHECK_URL: ${{ secrets.WATCH_HEALTHCHECK_URL }}
+    steps:
+      - name: skipped (secret not configured)
+        if: env.DATABASE_URL == ''
+        run: |
+          echo "WATCH_DATABASE_URL secret not set - skipping the daily watch run."
+          echo "Set it to the application PostgreSQL endpoint with ?sslmode=require."
+
+      # One OpenAI key serves both Responses generation and embeddings.
+      - name: preflight OpenAI config
+        if: env.DATABASE_URL != ''
+        run: |
+          set -euo pipefail
+          if [[ -z "${OPENAI_API_KEY//[[:space:]]/}" ]]; then
+            echo "::error::OPENAI_API_KEY is unset. No crawl or ingest was attempted."
+            exit 1
+          fi
+
+      # A configured production DB must never run Watch without the exact
+      # named OpenAI profile. This shape check runs before checkout; the
+      # DB-backed init-db gate compares the fixed model/dimension with the
+      # registered immutable profile.
+      - name: preflight Watch embedding profile
+        if: env.DATABASE_URL != ''
+        run: |
+          is_blank() { [[ -z "$1" || "$1" =~ ^[[:space:]]+$ ]]; }
+          missing=""
+          is_blank "${RETRIEVAL_EMBEDDING_PROFILE}" && missing="${missing} WATCH_ACTIVE_EMBEDDING_PROFILE"
+          if [ -n "${missing}" ]; then
+            echo "::error::Watch embedding-profile secrets are unset/empty:${missing}. No crawl or ingest was attempted."
+            exit 1
+          fi
+          if [[ ! "${RETRIEVAL_EMBEDDING_PROFILE}" =~ ^ep_[0-9a-f]{32}$ ]]; then
+            echo "::error::WATCH_ACTIVE_EMBEDDING_PROFILE must be a named ep_<32 lowercase hex> profile, never legacy."
+            exit 1
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        if: env.DATABASE_URL != ''
+        with:
+          persist-credentials: false
+
+      - name: install uv
+        if: env.DATABASE_URL != ''
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: install python
+        if: env.DATABASE_URL != ''
+        run: uv python install 3.12
+
+      # Match the SHIPPED prod closure (ci.yml python-audit): llm only. No
+      # `orchestration`: this job runs `regwatch watch` + the threshold sweep
+      # directly, never dagster (compose-only dev tooling; see the header).
+      # local-embeddings is intentionally omitted: nothing in this job embeds
+      # locally.
+      - name: sync deps
+        if: env.DATABASE_URL != ''
+        run: uv sync --extra llm
+
+      # NOTE: no `alembic upgrade head` here. The Fly deploy migrates (see the
+      # header). `regwatch watch` boots through the _init_postgres stamp guard,
+      # which refuses (loudly) if the DB schema is behind this checkout's head;
+      # the fix is to deploy the pending migration, not to migrate from the cron.
+
+      # Explicitly run the same boot/provider gate serving uses BEFORE crawling.
+      # init-db does not migrate an existing database. It verifies the schema
+      # stamp, requires complete profile coverage, and calls
+      # get_embedding_provider_for_profile, which compares configured model,
+      # dimension, revision, instruction/preprocessing, dtype and normalization
+      # with the immutable profile row. Endpoint and token were presence-checked
+      # above; this is intentionally not a paid live-endpoint probe. Any profile
+      # drift stops before an ingest write.
+      - name: validate registered embedding profile
+        if: env.DATABASE_URL != ''
+        run: uv run regwatch init-db
+
+      # The pipeline: crawl -> match watchlist -> ingest matches -> write
+      # durable alerts -> digest. --extract is the default (paid per-PSG BE
+      # extraction);
+      # pass --no-extract here if you want change-detection + alerts without the
+      # LLM extraction cost (chunks are still embedded either way).
+      - name: regwatch watch
+        id: watch
+        if: env.DATABASE_URL != ''
+        run: uv run regwatch watch
+
+      # The assertion that closes the loop: after ingest, the active profile
+      # must still cover every chunk. Without this a partial write is invisible
+      # until the next deploy boots, refuses, and takes the fleet down. Runs
+      # even when the pipeline step failed part-way (always()), because that is
+      # exactly when coverage is most likely to be broken. Queries the store
+      # directly rather than parsing the CLI's rich-formatted dict.
+      - name: verify embedding-profile coverage
+        if: always() && env.DATABASE_URL != '' && steps.watch.outcome != 'skipped'
+        run: |
+          uv run python - <<'PY'
+          import os
+          import sys
+
+          from regwatch.store.db import init_db
+          from regwatch.store.vector_store import profile_embedding_coverage
+
+          profile_id = os.environ["RETRIEVAL_EMBEDDING_PROFILE"]
+          # The Watch step already ran the full provider/readiness gate. Avoid
+          # having the boot-time coverage assertion hide the exact pending count
+          # this post-ingest diagnostic exists to report.
+          init_db(assert_provider=False)
+          coverage = profile_embedding_coverage(profile_id)
+          if coverage.pending_chunks:
+              print(
+                  f"::error::profile {profile_id} has {coverage.pending_chunks} chunk(s) "
+                  "with no embedding. The next app boot will refuse to activate it. "
+                  f"Run: regwatch embedding-profile-backfill {profile_id}"
+              )
+              sys.exit(1)
+          print(f"profile {profile_id}: coverage complete")
+          PY
+
+      # ---- Success digest to Slack (delivery, NOT paging) ---------------------
+      # Durable alerts land in the DB, but until now an analyst only learned of
+      # new/revised PSGs by opening the Watch page. On a successful run this
+      # posts the day's digest to the same webhook. Two INV-4 properties: the
+      # JSONL digest is the truthful record of THIS run (write_digest emits it
+      # only after the pipeline committed), and a missing/empty file means
+      # "ran, no changes" -- a quiet day posts NOTHING, never a notification
+      # about changes that did not happen. The post itself is `|| true`-guarded:
+      # a flaky webhook must never fail a run whose pipeline succeeded, so the
+      # failure-notify step below stays the ONLY path that can page.
+      - name: slack digest on success
+        if: success() && env.DATABASE_URL != '' && env.SLACK_WEBHOOK_URL != ''
+        run: |
+          set -euo pipefail
+          # Same UTC day as alerts.digest_path (datetime.now(UTC).date()) -- a
+          # local-time `date` would read the wrong file around midnight. The
+          # 07:17 UTC cron + 45-minute cap cannot straddle a UTC date boundary.
+          DIGEST="data/processed/alerts/digest-$(date -u +%F).jsonl"
+          if [ ! -s "$DIGEST" ]; then
+            echo "no alerts today ($DIGEST missing or empty) -- nothing to post"
+            exit 0
+          fi
+          # jq (preinstalled on ubuntu-latest) builds the payload FROM the JSONL
+          # so crawled ingredient names are JSON-escaped by construction --
+          # never printf-interpolated into the body (same reason the failure
+          # step passes context via env). Cap at 5 lines + "+N more": Slack is
+          # a headline, the Watch page is the full feed.
+          PAYLOAD="$(jq -s '
+            length as $n
+            | (.[:5] | map("- \(.active_ingredient) (\(.listing_appl_no), \(.listing_psg_type))"))
+              + (if $n > 5 then ["+\($n - 5) more"] else [] end)
+            | {text: (":memo: *regwatch daily digest* -- \($n) PSG alert(s):\n" + join("\n"))}
+          ' "$DIGEST")"
+          curl -fsS --max-time 20 --retry 2 --retry-delay 10 \
+            -X POST -H 'Content-Type: application/json' \
+            --data "$PAYLOAD" \
+            "$SLACK_WEBHOOK_URL" || true
+
+      # ---- Refusal-threshold revalidation (ADVISORY observability) -----------
+      # NON-GATING. This re-runs the gold set through the retrieval path against
+      # the PROD corpus, which CI's disposable empty database cannot. It reports
+      # the two score distributions (must-answer vs must-refuse) and RECOMMENDS
+      # a refusal cutoff. See docs/DEPLOY.md section "Refusal-threshold
+      # revalidation".
+      #
+      # This inherits the same active OpenAI profile as serving and ingest, so
+      # its score distribution comes from the production geometry (the legacy
+      # production OpenAI geometry.
+      #
+      # It is calibration OBSERVABILITY, NOT a gate. The sweep is read-only with
+      # respect to the safety path: it never changes REFUSAL_SCORE_THRESHOLD or
+      # the 0.30 default, and exits 0 even when its recommendation differs from
+      # 0.30. The explicit `continue-on-error: true` guarantees that a sweep
+      # hiccup (or a recommendation != 0.30) can NEVER fail the daily crawl or
+      # block ingestion, and that it never trips the failure-alerting or
+      # dead-man's-switch steps below (a non-gating step's failure does not set
+      # job `failure()`).
+      - name: threshold sweep (advisory)
+        if: env.DATABASE_URL != ''
+        continue-on-error: true
+        run: uv run python -m regwatch.eval.threshold_sweep --out threshold_sweep.json
+
+      - name: upload threshold sweep artifact
+        if: env.DATABASE_URL != ''
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: threshold-sweep
+          path: threshold_sweep.json
+          if-no-files-found: warn
+
+      # ---- Failure alerting + dead-man's-switch (see header) -----------------
+      # This cron is the sole prod driver of the pipeline; a silent failure is
+      # the failure class we guard against here. Each step is gated on BOTH the
+      # job outcome AND secret-presence, so a contributor/fork without the
+      # secrets sees no extra steps and no errors.
+
+      # Post to Slack on any failure OR cancellation. cancelled() is load-bearing:
+      # the job-level timeout-minutes CANCELS a hung run (it does not fail it),
+      # and failure() is false on cancellation, so without cancelled() an overrun
+      # past 45 minutes would page nobody. RUN_URL etc. are trusted GitHub context
+      # (no user input) but are passed via env and quoted per the safe pattern.
+      - name: notify slack on failure
+        if: (failure() || cancelled()) && env.SLACK_WEBHOOK_URL != ''
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REPO: ${{ github.repository }}
+          WORKFLOW: ${{ github.workflow }}
+        run: |
+          set -euo pipefail
+          curl -fsS --max-time 20 --retry 2 --retry-delay 10 \
+            -X POST -H 'Content-Type: application/json' \
+            --data "$(printf '{"text":":rotating_light: *%s* / *%s* FAILED - analysts may be on stale FDA guidance. <%s|View run>"}' "$REPO" "$WORKFLOW" "$RUN_URL")" \
+            "$SLACK_WEBHOOK_URL"
+
+      # Dead-man's-switch success ping. Fires even on a clean skip (DB secret
+      # unset): the cron DID start and finish, which is what we monitor. A cron
+      # that never starts pings nothing, so healthchecks.io pages on the miss.
+      - name: healthcheck ping on success
+        if: success() && env.WATCH_HEALTHCHECK_URL != ''
+        run: curl -fsS --max-time 20 --retry 2 --retry-delay 10 "$WATCH_HEALTHCHECK_URL"
+
+      # Signal the failure to healthchecks.io too, so it surfaces alongside the
+      # missed-start case in one place. Best-effort: `|| true` so a flaky ping
+      # never masks the real failure that already failed the job. cancelled()
+      # for the same reason as the Slack step: a timeout cancellation must still
+      # flip the check to failing instead of waiting out the missed-ping grace.
+      - name: healthcheck ping on failure
+        if: (failure() || cancelled()) && env.WATCH_HEALTHCHECK_URL != ''
+        run: curl -fsS --max-time 20 --retry 2 --retry-delay 10 "${WATCH_HEALTHCHECK_URL}/fail" || true

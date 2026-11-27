@@ -1,0 +1,264 @@
+[project]
+name = "regwatch"
+version = "0.1.0"
+description = "A regulatory prep accelerator for a generic-drug Clinical Regulatory Affairs team."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Vraj Raj" }]
+dependencies = [
+    "httpx>=0.27",
+    "selectolax>=0.4.11",
+    "tenacity>=9.0",
+    "pdfplumber>=0.11.10",
+    # Transitive via pdfplumber -> pdfminer.six. Floored here because 49.0.0 is
+    # PYSEC-2026-3552 / CVE-2026-69247 (HIGH), which fails both the pip-audit job
+    # and the Trivy image scan; 50.0.0 is the fix.
+    "cryptography>=50.0.0",
+    "pypdf>=6.15.0",  # 6.15.0 fixes CVE-2026-71852
+    "sqlmodel>=0.0.39",
+    "sqlalchemy>=2.0.51",
+    "alembic>=1.19.1",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.15.0",
+    "fastapi>=0.141.1",
+    "uvicorn[standard]>=0.52.1",
+    "structlog>=26.1.0",
+    "rapidfuzz>=3.10",
+    "python-dotenv>=1.0",
+    "rich>=13.9",
+    "typer>=0.27.1",
+    "tiktoken>=0.8",
+    "bcrypt>=5.0.0",
+    "python-docx>=1.2.0",
+    "pgvector>=0.5.0",
+    "psycopg[binary]>=3.2",
+    "sentry-sdk[fastapi]>=2.66.1",
+    "pymupdf>=1.28.2",
+    "json-repair>=0.62.0",
+    "python-multipart>=0.0.32",
+]
+
+[project.optional-dependencies]
+# Serves ONLY the optional cross-encoder reranker (retrieve/reranker.py,
+# RERANKER_ENABLED). The local bge embedding provider this extra was named for
+# was removed 2026-08-17; the name stays to avoid churning build tooling.
+local-embeddings = [
+    "sentence-transformers>=5.7.0",
+    "torch>=2.13.0,<3",
+    "transformers<6",
+]
+# OpenAI Responses API transport.
+llm = [
+    "openai>=2.53.0",
+]
+corpus-worker = [
+    "boto3>=1.40,<2",
+    "dagster==1.13.17",
+    "dagster-postgres==0.29.17",
+    "dagster-webserver==1.13.17",
+]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",
+    "pytest-timeout>=2.3",
+    "ruff>=0.16.2",
+    "black>=24.10",
+    "mypy>=2.3.0",
+    "types-requests",
+    "respx>=0.21",
+    "import-linter>=2.13",
+    "pytest-xdist>=3.6",
+]
+
+[project.scripts]
+regwatch = "regwatch.cli:app"
+
+[build-system]
+requires = ["hatchling>=1.31.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/regwatch", "config"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # bugbear
+    "SIM", # simplify
+    "RUF", # ruff
+    "S",   # flake8-bandit (Python SAST)
+]
+ignore = ["E501", "B008"]  # E501: line length handled by black; B008: typer.Option in defaults
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/*" = ["E402"]  # intentional sys.path bootstrap before imports
+# flake8-bandit assumes production code. In tests `assert` IS the oracle,
+# "password"/"token" literals are fixtures, subprocess spawns our own binaries
+# with literal argv, and 0.0.0.0 / /tmp / sha1 appear as ASSERTED values pinning
+# production behavior rather than as runtime configuration. Listed rule-by-rule
+# on purpose: everything unlisted (pickle, eval, shell=True, verify=False, ...)
+# still fails the build inside tests.
+"tests/**" = ["S101", "S104", "S105", "S106", "S108", "S324", "S603", "S607"]
+"tests_contract/**" = ["S101", "S105", "S603", "S607", "S608"]
+# Alembic DDL/DML interpolates only module-level constants and a pgvector schema
+# name validated against a two-element allowlist. No request data reaches these.
+"migrations/versions/*" = ["S608"]
+# S110: the only try/except/pass here guards optional LLM SDK imports, so the
+# API still boots in echo-only environments; there is no exception to log.
+"src/regwatch/api/main.py" = ["S110"]
+# S104: "0.0.0.0" is a member of the trusted-host allowlist used to decide
+# sslmode, i.e. a host being matched, not an address being bound.
+"src/regwatch/store/db.py" = ["S104"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+# Layering fitness functions (ARCH-4). These guard two real seams so the
+# coupling can't silently regress; they catch DIRECT imports only
+# (allow_indirect_imports) because both targets are reachable transitively
+# through legitimate callers. Keep this set to contracts that PASS on the
+# current tree — a strict layered contract is intentionally NOT shipped because
+# domain modules import regwatch.store.db directly today.
+[tool.importlinter]
+root_package = "regwatch"
+# Required so the `openai` forbidden contract below can see the external SDK as
+# a graph node (otherwise its ignore_imports exceptions don't resolve).
+include_external_packages = "true"
+
+# The pgvector implementation is meant to sit behind the store facade
+# (store.vector_store / store.db). The two api.main / store.db edges that remain
+# are the startup embedding-dim assertion (assert_embedding_provider_dim), which
+# must run before any vector I/O — they are pinned here so new direct callers
+# of the raw implementation are rejected.
+[[tool.importlinter.contracts]]
+name = "pgvector_store is only reached through the store facade"
+type = "forbidden"
+source_modules = ["regwatch"]
+forbidden_modules = ["regwatch.store.pgvector_store"]
+allow_indirect_imports = "true"
+ignore_imports = [
+    "regwatch.store.vector_store -> regwatch.store.pgvector_store",
+    "regwatch.store.db -> regwatch.store.pgvector_store",
+    "regwatch.api.main -> regwatch.store.pgvector_store",
+]
+
+# The OpenAI SDK is an I/O detail. It belongs in the two LLM client seams; the
+# api.main edge is only the APIError type used to classify upstream failures.
+# Any other module reaching for `openai` directly is a layering smell.
+[[tool.importlinter.contracts]]
+name = "openai SDK stays in the LLM client seam"
+type = "forbidden"
+source_modules = ["regwatch"]
+forbidden_modules = ["openai"]
+allow_indirect_imports = "true"
+ignore_imports = [
+    "regwatch.common.llm_clients -> openai",
+    "regwatch.api.main -> openai",
+]
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", marker = "sys_platform == 'linux'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+mypy_path = "src"
+packages = ["regwatch"]
+ignore_missing_imports = true
+warn_unused_ignores = false
+warn_return_any = false
+# Pragmatic for a POC: don't fail on third-party gaps
+disallow_untyped_decorators = false
+
+# python-docx ships only partial type hints (e.g. add_page_break is untyped),
+# which trips strict no-untyped-call. Treat it as stubless so docx objects are
+# Any at the call site, matching the ignore_missing_imports posture above.
+[[tool.mypy.overrides]]
+module = ["docx.*"]
+follow_imports = "skip"
+follow_imports_for_stubs = true
+
+[[tool.mypy.overrides]]
+module = [
+    "tests.*",
+    "tests_contract.*",
+    "test_alerts",
+    "test_api",
+    "test_cross_drug_leak",
+    "test_extractor",
+    "test_grounded_qa_citations",
+    "test_invariants",
+    "test_llm_provider",
+    "test_pipeline_idempotent",
+]
+disallow_any_generics = false
+disallow_untyped_defs = false
+
+# Vendored DefPredict pipeline (deficiency-chatbot bdad5c5): upstream ships
+# untyped, and the vendoring contract is byte-faithful logic -- annotating it
+# would fork it. Only these three vendored subpackages are relaxed; the
+# regwatch-authored seams (deficiency.structured/precedents/runner/events and
+# the store/API layers) stay fully strict.
+[[tool.mypy.overrides]]
+module = [
+    "regwatch.deficiency.parse.*",
+    "regwatch.deficiency.detection.*",
+    "regwatch.deficiency.schemas.*",
+]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
+disallow_any_generics = false
+check_untyped_defs = false
+# The codes below fire on mypy-invisible invariants inside upstream's OWN
+# annotated functions (e.g. Optional fields checked at runtime before compare);
+# silencing per-module keeps the vendored files free of scattered ignores.
+disable_error_code = ["assignment", "index", "union-attr", "operator"]
+
+# Ported upstream tests exercise those untyped vendored functions directly.
+[[tool.mypy.overrides]]
+module = [
+    "tests.test_deficiency_layout",
+    "tests.test_deficiency_section_splitter",
+    "tests.test_deficiency_schemas",
+    "tests.test_deficiency_detection",
+    "tests.test_deficiency_structured",
+]
+disallow_untyped_calls = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+asyncio_mode = "auto"
+# Fail a hung test fast instead of stalling CI to its 6h ceiling (e.g. a DB
+# lock-wait — the Jun-18 incident class — or a missed network monkeypatch
+# against the CI Postgres service). thread, not signal: SIGALRM is unreliable
+# inside native extensions (pdfminer, psycopg). Per-test override via
+# @pytest.mark.timeout(N) if a specific test legitimately needs longer.
+timeout = 60
+timeout_method = "thread"
+markers = [
+    "integration: integration tests (may hit the network)",
+    "slow: slow tests",
+    "invariants: compliance invariants (INV-1..INV-6)",
+    "contract: cross-service contract tests (Go proxy + uvicorn + Postgres subprocesses)",
+]

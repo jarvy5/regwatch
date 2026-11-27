@@ -1,0 +1,172 @@
+-- Chat session/message store surface for GET/DELETE /sessions*.
+-- Mirrors src/regwatch/api/main.py list_sessions/get_session/delete_session:
+-- the list page is DELIBERATELY two queries (sessions + one GROUP BY of
+-- message counts), never N+1; ownership is enforced by scoping every query
+-- to user_id and treating a miss as 404 (never 403 -- foreign rows must not
+-- be confirmed to exist).
+
+-- display_title falls back to the first user message's content when the
+-- session has no explicit title (the correlated subquery the Python list
+-- endpoint uses). NULL when a session has neither -- the wire mapping owns
+-- what to render then. COALESCE vs Python truthiness: an EMPTY-STRING title
+-- would coalesce here but fall through in Python; unreachable today (nothing
+-- in src/ ever writes title), revisit if a rename/title feature lands.
+--
+-- origin = 'thread' is a LITERAL, not a parameter: this query IS the work
+-- rail's Threads list (issue #208), so an Assistant-panel conversation
+-- (chat_session.origin = 'assistant') must never surface here. This is
+-- deliberately the ONLY place that filters on origin -- GetChatSessionOwned
+-- below stays origin-blind on purpose, so an assistant conversation stays
+-- readable and deletable by id (GET/DELETE /sessions/{id}) instead of
+-- becoming an unreachable orphan once this list excludes it.
+-- name: ListChatSessionsForUser :many
+SELECT cs.id,
+       cs.user_id,
+       cs.title,
+       cs.active_filters_json,
+       cs.created_at,
+       cs.updated_at,
+       COALESCE(cs.title, (
+         SELECT cm.content
+         FROM public.chat_message cm
+         WHERE cm.session_id = cs.id AND cm.role = 'user'
+         ORDER BY cm.created_at ASC
+         LIMIT 1
+       )) AS display_title
+FROM public.chat_session cs
+WHERE cs.user_id = $1 AND cs.origin = 'thread'
+ORDER BY cs.updated_at DESC;
+
+-- name: CountChatMessagesForUser :many
+SELECT cm.session_id,
+       COUNT(*)::bigint AS message_count
+FROM public.chat_message cm
+JOIN public.chat_session cs ON cs.id = cm.session_id
+WHERE cs.user_id = $1
+GROUP BY cm.session_id;
+
+-- name: GetChatSessionOwned :one
+SELECT * FROM public.chat_session
+WHERE id = $1 AND user_id = $2;
+
+-- ORDER BY created_at ASC, role DESC: created_at is the primary key of turn
+-- order. The role DESC secondary is a DEFENSIVE tiebreaker for the step-5 Go
+-- CompleteQuery writer, where the user (pre-RAG) and assistant (post-RAG)
+-- messages of one turn are stamped by the same control plane and could, on a
+-- clock that does not advance a microsecond across the RAG round-trip, share a
+-- created_at. 'user' > 'assistant' lexically, so DESC keeps the question ahead
+-- of its answer for equal timestamps (S17). Distinct timestamps are unaffected.
+-- name: ListChatMessages :many
+SELECT * FROM public.chat_message
+WHERE session_id = $1
+ORDER BY created_at ASC, role DESC;
+
+-- Hard delete, messages first (chat_message.session_id FK has no ON DELETE
+-- CASCADE -- the order here is load-bearing, same as the Python handler).
+-- name: DeleteChatMessagesBySession :execrows
+DELETE FROM public.chat_message
+WHERE session_id = $1;
+
+-- name: DeleteChatSession :execrows
+DELETE FROM public.chat_session
+WHERE id = $1;
+
+-- ---------------------------------------------------------------------------
+-- Write surface for the step-5 Go CompleteQuery cutover (PR B). Ports the
+-- persistence half of grounded_qa.ask()/_persist_turn/_apply_session_patch:
+-- the user message (T1, pre-RAG), and the assistant message + filter carry-
+-- over (T3, post-audit). Session upsert mirrors conversation.ensure_session.
+-- ---------------------------------------------------------------------------
+
+-- GetChatSessionByID reads a session row by id WITHOUT scoping to an owner, so
+-- the CompleteQuery handler can reproduce _authorize_session_access: missing ->
+-- proceed (create bound to caller); NULL owner -> adopt; foreign -> 404.
+-- name: GetChatSessionByID :one
+SELECT * FROM public.chat_session
+WHERE id = $1;
+
+-- AdoptNullOwnerSession claims a legacy unowned session for the caller in a
+-- single conditional UPDATE: two requests racing on the same NULL-owner row
+-- cannot both win (the loser affects 0 rows and re-reads the committed owner).
+-- name: AdoptNullOwnerSession :execrows
+UPDATE public.chat_session
+SET user_id = $2
+WHERE id = $1 AND user_id IS NULL;
+
+-- UpsertChatSession ports conversation.ensure_session INCLUDING its last-line
+-- ownership defense: create the session bound to the caller on first sight;
+-- on conflict, adopt a NULL owner (legacy rows, like ensure_session's
+-- row.user_id-is-None branch) or bump updated_at on the caller's own row --
+-- but a row already bound to a DIFFERENT user makes the WHERE fail, so the
+-- statement returns no row (pgx.ErrNoRows), the write-time signal for
+-- Python's SessionOwnershipError (a lost create race after the API-level
+-- ownership pre-check). active_filters_json is NEVER overwritten on conflict
+-- (only the shell's explicit filter carry-over, below, mutates filters).
+-- origin follows the identical create-only rule, for the identical reason:
+-- an established conversation does not change kind (thread vs assistant)
+-- because a later caller on the same session_id asked differently, so the ON
+-- CONFLICT SET list omits it exactly like active_filters_json (issue #208).
+-- name: UpsertChatSession :one
+INSERT INTO public.chat_session (id, user_id, active_filters_json, created_at, updated_at, origin)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (id) DO UPDATE
+SET user_id = EXCLUDED.user_id,
+    updated_at = EXCLUDED.updated_at
+WHERE chat_session.user_id IS NULL OR chat_session.user_id = EXCLUDED.user_id
+RETURNING id;
+
+-- InsertChatMessage ports conversation.record_message: one user or assistant
+-- turn. jsonb payloads (filters/citations/clarify/related/metadata) are written
+-- VERBATIM as opaque bytes, exactly as the RAG core / request supplied them.
+-- name: InsertChatMessage :exec
+INSERT INTO public.chat_message (
+    id,
+    session_id,
+    turn_id,
+    role,
+    content,
+    status,
+    model_name,
+    audit_id,
+    reason,
+    interpretation,
+    filters_json,
+    citations_json,
+    clarify_json,
+    related_json,
+    metadata_json,
+    created_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+);
+
+-- UpdateChatSessionFilters ports conversation.update_session_filters: the
+-- best-effort carry-over write applied only when the turn pinned a product
+-- (SessionPatch.update_filters). Never touches owner or created_at.
+-- name: UpdateChatSessionFilters :exec
+UPDATE public.chat_session
+SET active_filters_json = $2, updated_at = $3
+WHERE id = $1;
+
+-- DeleteUserTurnMessage undoes T1's chat_message write for one turn (the
+-- saturation-shed compensation): a shed turn must leave zero new rows in both
+-- runtimes, matching Python's pre-write shed. turn_id is a fresh UUID minted
+-- per request, so this can never touch another turn's rows.
+-- name: DeleteUserTurnMessage :execrows
+DELETE FROM public.chat_message
+WHERE turn_id = $1 AND role = 'user';
+
+-- DeleteEmptySessionCreatedAt removes the session row ONLY when this turn
+-- created it (created_at is set solely on insert, so it equals the turn's t0
+-- iff T1's upsert inserted rather than updated) and no messages remain. A
+-- pre-existing session keeps a different created_at and is never touched; the
+-- NOT EXISTS guard protects a concurrent turn's committed message (the FK from
+-- chat_message additionally blocks a lost race, which the caller treats as
+-- best-effort).
+-- name: DeleteEmptySessionCreatedAt :execrows
+DELETE FROM public.chat_session cs
+WHERE cs.id = $1
+  AND cs.created_at = $2
+  AND NOT EXISTS (
+    SELECT 1 FROM public.chat_message cm WHERE cm.session_id = cs.id
+  );
