@@ -9,7 +9,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/Hussain0327/regwatch/go/internal/store"
+	"github.com/jarvy5/regwatch/go/internal/store"
 )
 
 // INV-5 at the API boundary (mirrors main.py::USER_ASSERTABLE_SOURCES):

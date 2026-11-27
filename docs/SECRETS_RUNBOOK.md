@@ -31,7 +31,7 @@ This doc does not claim which of the seven are currently set. A static
 checkout cannot prove that. Run this yourself:
 
 ```bash
-gh secret list -R Hussain0327/regwatch
+gh secret list -R jarvy5/regwatch
 ```
 
 It prints names and updated-at, never values.
@@ -46,7 +46,7 @@ It prints names and updated-at, never values.
 
 ## 0. Prerequisites
 
-- `gh` CLI authenticated against `Hussain0327/regwatch` with a token that can
+- `gh` CLI authenticated against `jarvy5/regwatch` with a token that can
   write Actions secrets. In this repo `gh auth login` may be rejected because
   the token lacks `read:org`, so export a `repo`-scoped token per call
   instead:
@@ -173,13 +173,13 @@ print a secret.
 # WATCH_DATABASE_URL <- local DATABASE_URL (the Lakebase direct endpoint).
 # Piped from .env so the value never lands in argv or shell history.
 grep -E '^DATABASE_URL=' .env | head -1 | cut -d= -f2- \
-  | gh secret set WATCH_DATABASE_URL -R Hussain0327/regwatch
+  | gh secret set WATCH_DATABASE_URL -R jarvy5/regwatch
 
 # OPENAI_API_KEY gates watch-daily.yml AND openai-eval.yml (the latter
 # inherited by ci.yml's required "openai-eval / eval" check). Missing it
 # hard-fails both.
 grep -E '^OPENAI_API_KEY=' .env | head -1 | cut -d= -f2- \
-  | gh secret set OPENAI_API_KEY -R Hussain0327/regwatch
+  | gh secret set OPENAI_API_KEY -R jarvy5/regwatch
 ```
 
 > If your `.env` values are quoted, strip the quotes before piping (add
@@ -191,7 +191,7 @@ grep -E '^OPENAI_API_KEY=' .env | head -1 | cut -d= -f2- \
 ```bash
 # Mint a fresh deploy-scoped Fly token and store it without printing it.
 fly tokens create deploy --app amneal \
-  | gh secret set FLY_API_TOKEN -R Hussain0327/regwatch
+  | gh secret set FLY_API_TOKEN -R jarvy5/regwatch
 ```
 
 If your flyctl version wraps the `FlyV1 ...` token in log lines, mint it into
@@ -203,7 +203,7 @@ umask 077
 tmp="$(mktemp)"                      # use your session scratchpad if you prefer
 fly tokens create deploy --app amneal > "$tmp"
 # (verify $tmp holds exactly the token line; trim any log preamble)
-gh secret set FLY_API_TOKEN -R Hussain0327/regwatch < "$tmp"
+gh secret set FLY_API_TOKEN -R jarvy5/regwatch < "$tmp"
 rm -P "$tmp" 2>/dev/null || rm -f "$tmp"
 ```
 
@@ -213,13 +213,13 @@ rm -P "$tmp" 2>/dev/null || rm -f "$tmp"
 # SLACK_WEBHOOK_URL <- a Slack incoming-webhook URL.
 #   Slack -> Apps -> Incoming Webhooks -> Add to a channel -> copy the URL
 #   into a restricted temp file, then:
-gh secret set SLACK_WEBHOOK_URL -R Hussain0327/regwatch < /path/to/slack_webhook.txt
+gh secret set SLACK_WEBHOOK_URL -R jarvy5/regwatch < /path/to/slack_webhook.txt
 
 # WATCH_HEALTHCHECK_URL <- a healthchecks.io ping URL (dead-man's-switch).
-gh secret set WATCH_HEALTHCHECK_URL -R Hussain0327/regwatch < /path/to/hc_url.txt
+gh secret set WATCH_HEALTHCHECK_URL -R jarvy5/regwatch < /path/to/hc_url.txt
 
 # PROD_HEALTH_URL <- https://amneal.fly.dev/health
-gh secret set PROD_HEALTH_URL -R Hussain0327/regwatch < /path/to/prod_health_url.txt
+gh secret set PROD_HEALTH_URL -R jarvy5/regwatch < /path/to/prod_health_url.txt
 ```
 
 `PROD_HEALTH_URL` is not really secret, but storing it as one keeps
@@ -236,7 +236,7 @@ effective value), never `legacy`:
 
 ```bash
 printf '%s' '<profile-id-matching-prod>' \
-  | gh secret set WATCH_ACTIVE_EMBEDDING_PROFILE -R Hussain0327/regwatch
+  | gh secret set WATCH_ACTIVE_EMBEDDING_PROFILE -R jarvy5/regwatch
 ```
 
 Confirm `OPENAI_API_KEY` is also set (3.1). Both are required before the
@@ -246,7 +246,7 @@ check, it silently writes vectors nobody's queries will read.
 ### 3.5 Confirm what was set
 
 ```bash
-gh secret list -R Hussain0327/regwatch
+gh secret list -R jarvy5/regwatch
 ```
 
 Names and updated-at only, never values.
@@ -260,12 +260,12 @@ Do not wait for the 07:17 UTC cron. `watch-daily.yml` declares
 safe first write to the shared prod database.
 
 ```bash
-gh workflow run watch-daily.yml -R Hussain0327/regwatch
+gh workflow run watch-daily.yml -R jarvy5/regwatch
 
 # Give Actions a few seconds to register the run, then follow it.
-gh run list --workflow=watch-daily.yml -R Hussain0327/regwatch --limit 1
-gh run watch <run-id> -R Hussain0327/regwatch --exit-status
-gh run view <run-id> -R Hussain0327/regwatch --log
+gh run list --workflow=watch-daily.yml -R jarvy5/regwatch --limit 1
+gh run watch <run-id> -R jarvy5/regwatch --exit-status
+gh run view <run-id> -R jarvy5/regwatch --log
 ```
 
 What a good run looks like:
@@ -298,14 +298,14 @@ What a good run looks like:
 dispatchable. Its first execution is the next green push to `main`:
 
 ```bash
-gh run list --workflow=deploy.yml -R Hussain0327/regwatch --limit 1
-gh run view <run-id> -R Hussain0327/regwatch --log
+gh run list --workflow=deploy.yml -R jarvy5/regwatch --limit 1
+gh run view <run-id> -R jarvy5/regwatch --log
 ```
 
 `uptime-eval.yml` is dispatchable:
 
 ```bash
-gh workflow run uptime-eval.yml -R Hussain0327/regwatch
+gh workflow run uptime-eval.yml -R jarvy5/regwatch
 ```
 
 Expect "health OK". "PROD_HEALTH_URL secret not set" means the optional
@@ -324,15 +324,15 @@ these deletions touch prod data.
 ```bash
 # Disable CD (the next green main no longer deploys). Also stops
 # machine-monitor.yml's check.
-gh secret delete FLY_API_TOKEN -R Hussain0327/regwatch
+gh secret delete FLY_API_TOKEN -R jarvy5/regwatch
 
 # Re-dormant the daily watch (job returns to the clean skip path):
-gh secret delete WATCH_DATABASE_URL -R Hussain0327/regwatch
+gh secret delete WATCH_DATABASE_URL -R jarvy5/regwatch
 
 # Silence alerting and uptime:
-gh secret delete SLACK_WEBHOOK_URL -R Hussain0327/regwatch
-gh secret delete WATCH_HEALTHCHECK_URL -R Hussain0327/regwatch
-gh secret delete PROD_HEALTH_URL -R Hussain0327/regwatch
+gh secret delete SLACK_WEBHOOK_URL -R jarvy5/regwatch
+gh secret delete WATCH_HEALTHCHECK_URL -R jarvy5/regwatch
+gh secret delete PROD_HEALTH_URL -R jarvy5/regwatch
 ```
 
 - Deleting `WATCH_DATABASE_URL` is the cleanest kill-switch for the cron: the

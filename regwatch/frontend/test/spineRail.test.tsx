@@ -28,7 +28,7 @@ vi.mock("@/components/SettingsProvider", () => ({
 
 vi.mock("@/components/AuthProvider", () => ({
   useAuth: () => ({
-    user: { id: 1, email: "analyst@example.test", display_name: "Raja Hussain", role: "user" },
+    user: { id: 1, email: "analyst@example.test", display_name: "Vraj Raj", role: "user" },
     loading: false,
     refresh: vi.fn(async () => {}),
     logout: vi.fn(async () => {}),
@@ -149,7 +149,7 @@ describe("spine rail -- the analyst's own things", () => {
     reachable = false;
     const user = userEvent.setup();
     render(<SpineRail />);
-    const account = screen.getByRole("button", { name: /Raja Hussain.*unreachable/i });
+    const account = screen.getByRole("button", { name: /Vraj Raj.*unreachable/i });
     await user.click(account);
     expect(screen.getByRole("dialog", { name: "Account and colophon" })).toBeInTheDocument();
   });

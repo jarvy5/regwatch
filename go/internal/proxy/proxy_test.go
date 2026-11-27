@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Hussain0327/regwatch/go/internal/proxy"
+	"github.com/jarvy5/regwatch/go/internal/proxy"
 )
 
 // waitFor bounds every blocking read so a buffering regression fails the test

@@ -9,7 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/Hussain0327/regwatch/go/internal/store"
+	"github.com/jarvy5/regwatch/go/internal/store"
 )
 
 // feedbackResponse echoes the request (FeedbackResponse in main.py); the

@@ -19,7 +19,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/Hussain0327/regwatch/go/internal/store"
+	"github.com/jarvy5/regwatch/go/internal/store"
 )
 
 const (

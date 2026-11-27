@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/Hussain0327/regwatch/go/internal/store"
+	"github.com/jarvy5/regwatch/go/internal/store"
 )
 
 // Persistence for the step-5 CompleteQuery cutover. AUDIT-FIRST, three ISOLATED

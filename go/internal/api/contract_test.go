@@ -32,8 +32,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/Hussain0327/regwatch/go/internal/proxy"
-	"github.com/Hussain0327/regwatch/go/internal/store"
+	"github.com/jarvy5/regwatch/go/internal/proxy"
+	"github.com/jarvy5/regwatch/go/internal/store"
 )
 
 const (

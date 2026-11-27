@@ -5,7 +5,7 @@ description = "A regulatory prep accelerator for a generic-drug Clinical Regulat
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-authors = [{ name = "Hussain0327" }]
+authors = [{ name = "Vraj Raj" }]
 dependencies = [
     "httpx>=0.27",
     "selectolax>=0.4.11",
